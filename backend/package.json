@@ -1,0 +1,39 @@
+{
+  "name": "iballot-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest",
+    "server": "node server.js",
+    "firebase": "firebase emulators:start --only auth"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.5.0",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.1",
+    "fast-xml-parser": "^5.2.5",
+    "firebase-admin": "^13.4.0",
+    "fuse.js": "^7.1.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "pg": "^8.16.2",
+    "twilio": "^5.7.3",
+    "xml-crypto": "^6.1.2",
+    "@xmldom/xmldom": "^0.9.0"
+  },
+  "devDependencies": {
+    "jest": "^30.0.5",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.4"
+  }
+}
