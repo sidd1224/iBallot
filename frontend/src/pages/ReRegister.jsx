@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-function Register() {
+function ReRegister() {
   const [aadhaarFile, setAadhaarFile] = useState(null);
   const [aadhaarUploaded, setAadhaarUploaded] = useState(false);
   const [parliamentAssembly, setParliamentAssembly] = useState("");
@@ -49,7 +49,7 @@ function Register() {
     }
   };
 
-  // Register
+  // Re-Register
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!aadhaarUploaded) {
@@ -57,7 +57,7 @@ function Register() {
       return;
     }
     if (!isOtpVerified) {
-      alert("Please verify OTP before registering.");
+      alert("Please verify OTP before re-registering.");
       return;
     }
     if (!password) {
@@ -73,7 +73,7 @@ function Register() {
     };
 
     localStorage.setItem("user", JSON.stringify(userData));
-    alert("Registration successful! Please login.");
+    alert("Re-Registration successful! Please login.");
     navigate("/login");
   };
 
@@ -81,7 +81,7 @@ function Register() {
     <div className="flex justify-center items-center h-screen bg-gray-100">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-96">
         <h2 className="text-2xl font-bold mb-6 text-center text-blue-600">
-          Register
+          Re-Register
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -186,12 +186,12 @@ function Register() {
             />
           </div>
 
-          {/* Register */}
+          {/* Re-Register */}
           <button
             type="submit"
             className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
           >
-            Register
+            Re-Register
           </button>
         </form>
 
@@ -208,22 +208,12 @@ function Register() {
             Back to Home
           </Link>
         </p>
-
-        <p className="mt-2 text-center text-sm">
-          <Link to="/reregister" className="text-blue-600 hover:underline">
-            Re-Register
-          </Link>
-        </p>
       </div>
     </div>
   );
 }
 
-export default Register;
-
-
-
-
+export default ReRegister;
 
 
 
