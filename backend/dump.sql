@@ -8,6 +8,7 @@
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -171,12 +172,11 @@ ALTER TABLE public.voter_control OWNER TO postgres;
 
 CREATE TABLE public.voter_metadata (
     id integer NOT NULL,
-    encrypted_blob text NOT NULL,
-    salt character varying(64) NOT NULL,
-    phone character varying(64),
+    encrypted_blob bytea NOT NULL,
     hashed_password character varying(100) NOT NULL,
     refid_hash character varying(64),
-    last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    username character varying(100)
 );
 
 
@@ -4926,7 +4926,7 @@ COPY public.parlimentary_constituencies (id, state_name, district_name, parliame
 1134	WEST BENGAL	ALIPURDUAR	ALIPURDUARS (ST)	WB-PC-540
 1135	WEST BENGAL	JALPAIGURI	JALPAIGURI (SC)	WB-PC-541
 1136	WEST BENGAL	DARJEELING	DARJEELING	WB-PC-542
-1137	LAKSHADWEEP	LAKSHADWEEP	LAKSHADWEEP	nan
+1137	LAKSHADWEEP	LAKSHADWEEP	LAKSHADWEEP	LD-PC-543
 \.
 
 
@@ -4942,7 +4942,7 @@ COPY public.voter_control (voter_hash, enc_private_key, cast_vote, wallet_addres
 -- Data for Name: voter_metadata; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.voter_metadata (id, encrypted_blob, salt, phone, hashed_password, refid_hash, last_updated) FROM stdin;
+COPY public.voter_metadata (id, encrypted_blob, hashed_password, refid_hash, last_updated, username) FROM stdin;
 \.
 
 
@@ -5039,19 +5039,19 @@ ALTER TABLE ONLY public.voter_control
 
 
 --
--- Name: voter_metadata voter_metadata_phone_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.voter_metadata
-    ADD CONSTRAINT voter_metadata_phone_key UNIQUE (phone);
-
-
---
 -- Name: voter_metadata voter_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.voter_metadata
     ADD CONSTRAINT voter_metadata_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: voter_metadata voter_metadata_username_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.voter_metadata
+    ADD CONSTRAINT voter_metadata_username_key UNIQUE (username);
 
 
 --

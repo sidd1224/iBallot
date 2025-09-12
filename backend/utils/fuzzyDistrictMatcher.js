@@ -1,3 +1,4 @@
+// utils/fuzzyDistrictMatcher.js
 const Fuse = require("fuse.js");
 const pool = require("../database/db"); // PostgreSQL pool
 
@@ -10,32 +11,41 @@ async function initializeDistrictMatcher() {
 
   fuse = new Fuse(officialDistricts, {
     includeScore: true,
-    threshold: 0.4
+    threshold: 0.4, // tolerance for spelling mistakes
   });
 }
-async function matchDistrictToAssembly(state, aadhaarDistrict) {
+
+async function matchDistrictToConstituencies(state, aadhaarDistrict) {
   if (!fuse) await initializeDistrictMatcher();
 
   const matches = fuse.search(aadhaarDistrict.trim().toLowerCase());
   if (matches.length === 0) return null;
 
-  const bestMatch = matches[0].item;
+  const bestMatch = matches[0].item; // fuzzy-corrected district
 
-  // ✅ Use correct column name: assembly_id
-  const query = `
-    SELECT assembly_id FROM assembly_constituencies
-    WHERE LOWER(district_name) = $1 AND LOWER(state_name) = $2
-    LIMIT 1
-  `;
-  const result = await pool.query(query, [bestMatch, state.trim().toLowerCase()]);
-  if (result.rows.length === 0) return null;
+  // ✅ Get assemblies
+  const assemblies = await pool.query(
+    `SELECT assembly_id, constituency_name 
+     FROM assembly_constituencies
+     WHERE LOWER(district_name) = $1 AND LOWER(state_name) = $2`,
+    [bestMatch, state.trim().toLowerCase()]
+  );
+
+  // ✅ Get parliaments
+  const parliaments = await pool.query(
+    `SELECT parliament_id, constituency_name 
+     FROM parliament_constituencies
+     WHERE LOWER(district_name) = $1 AND LOWER(state_name) = $2`,
+    [bestMatch, state.trim().toLowerCase()]
+  );
 
   return {
-    assemblyId: result.rows[0].assembly_id,
-    districtMatched: bestMatch
+    districtMatched: bestMatch,
+    assemblies: assemblies.rows,
+    parliaments: parliaments.rows,
   };
 }
 
 module.exports = {
-  matchDistrictToAssembly
+  matchDistrictToConstituencies,
 };

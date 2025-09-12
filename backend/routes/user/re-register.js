@@ -4,84 +4,100 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const multer = require("multer");
 
 const pool = require("../../database/db");
 const { parseAadhaarXML } = require("../../utils/xmlParser");
-const { generateVoterHash } = require("../../utils/hashUtils");
 const { encrypt } = require("../../utils/aesUtils");
-const matchDistrictToAssembly = require("../../utils/fuzzyDistrictMatcher");
+const { matchDistrictToConstituencies } = require("../../utils/fuzzyDistrictMatcher");
 
-const { Wallet, JsonRpcProvider } = require("ethers");
-const contract = require("../../blockchain/contract");
+// Configure multer for secure file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../../adhaar/uploads/');
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'reregister-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
 
-const admin = require("../../utils/firebaseAdmin");
-require("dotenv").config();
+const upload = multer({ storage: storage });
 
-router.post("/", async (req, res) => {
+/**
+ * @route   POST /re-register
+ * @desc    Updates a user's constituency data after address change.
+ * @access  Private (requires username/password)
+ */
+router.post("/", upload.single('newAadhaarFile'), async (req, res) => {
+  let client;
+  let newXmlPath = '';
+
   try {
-    const { idToken, password, aadhaarFilePath } = req.body;
-    if (!idToken || !password || !aadhaarFilePath) {
-      return res.status(400).json({ error: "Missing fields" });
+    const { username, password, newAssemblyId, newParliamentId } = req.body;
+
+    // Step 1: Validate input
+    if (!username || !password || !newAssemblyId || !newParliamentId) {
+      return res.status(400).json({ error: "Missing username, password, or new constituency IDs." });
     }
+    if (!req.file) {
+      return res.status(400).json({ error: "New Aadhaar XML file is required." });
+    }
+    
+    newXmlPath = req.file.path;
 
-    const decoded = await admin.auth().verifyIdToken(idToken);
-    const phone = decoded.phone_number;
-    if (!phone) return res.status(400).json({ error: "Phone number not found in token" });
-
-    const phoneHash = crypto.createHash("sha256").update(phone).digest("hex");
-
-    const xmlPath = path.join(__dirname, `../../adhaar/${aadhaarFilePath}`);
-    const { reference_id: refId, dob, district_name, state_name } = parseAadhaarXML(xmlPath);
-
-    if (!dob) return res.status(400).json({ error: "DOB missing in Aadhaar" });
-    const age = getAgeFromDOB(dob);
-    if (age < 18) return res.status(403).json({ error: "Must be 18+ to re-register" });
-
-    const refIdHash = crypto.createHash("sha256").update(refId).digest("hex");
-    const result = await pool.query("SELECT phone FROM voter_metadata WHERE refid_hash = $1", [refIdHash]);
+    // Step 2: Authenticate the user (similar to login)
+    client = await pool.connect();
+    const result = await client.query("SELECT * FROM voter_metadata WHERE username = $1", [username]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "No existing registration found for this Aadhaar" });
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
+    const user = result.rows[0];
+
+    const isPasswordMatch = await bcrypt.compare(password, user.hashed_password);
+    if (!isPasswordMatch) {
+      return res.status(401).json({ error: "Invalid credentials." });
     }
 
-    // ✅ Match assembly ID from fuzzy district matcher
-    const assemblyId = await matchDistrictToAssembly(state_name, district_name);
-    if (!assemblyId) {
-      return res.status(400).json({ error: "Could not match your district to any assembly" });
+    // Step 3: Parse the NEW Aadhaar file to ensure it matches the original person
+    const { reference_id: newRefId } = parseAadhaarXML(newXmlPath);
+    const newRefIdHash = crypto.createHash("sha256").update(newRefId).digest("hex");
+
+    // Security Check: Ensure the new Aadhaar belongs to the same person
+    if (newRefIdHash !== user.refid_hash) {
+      return res.status(403).json({ error: "The new Aadhaar details do not match the existing registration." });
     }
 
-    // ✅ Update phone, encrypted blob, password
-    const salt = crypto.randomBytes(16);
-    const key = crypto.scryptSync(phone, salt, 32);
-    const encryptedBlob = encrypt(
-      JSON.stringify({ reference_id: refId, phone, assembly_id: assemblyId }),
-      key
-    );
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Step 4: Prepare new encrypted blob and update the database
+    const newBlobData = { reference_id: newRefId, assemblyId: newAssemblyId, parliamentId: newParliamentId };
+    const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
+    const newEncryptedBlob = encrypt(JSON.stringify(newBlobData), secretKey);
 
-    await pool.query(
+    await client.query(
       `UPDATE voter_metadata
-       SET phone = $1, encrypted_blob = $2, salt = $3, hashed_password = $4
-       WHERE refid_hash = $5`,
-      [phoneHash, encryptedBlob, salt.toString("hex"), hashedPassword, refIdHash]
+       SET encrypted_blob = $1, assembly_id = $2, parliament_id = $3
+       WHERE refid_hash = $4`,
+      [newEncryptedBlob, newAssemblyId, newParliamentId, user.refid_hash]
     );
 
-    res.status(200).json({ message: "✅ Re-registration successful" });
+    res.status(200).json({ message: "✅ Address and constituency successfully updated." });
 
   } catch (err) {
     console.error("❌ Re-registration error:", err);
     res.status(500).json({ error: "Re-registration failed", details: err.message });
+
+  } finally {
+    // Always clean up the uploaded file and release the DB client
+    if (fs.existsSync(newXmlPath)) {
+      fs.unlinkSync(newXmlPath);
+    }
+    if (client) {
+      client.release();
+    }
   }
 });
-
-// Helper to compute age
-function getAgeFromDOB(dob) {
-  const birthDate = new Date(dob.split("-").reverse().join("-")); // dd-mm-yyyy
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-  return age;
-}
 
 module.exports = router;

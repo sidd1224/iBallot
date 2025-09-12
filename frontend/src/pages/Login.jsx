@@ -1,176 +1,109 @@
-// src/pages/Login.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import axios from 'axios';
 
-export default function Login() {
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [isOtpVerified, setIsOtpVerified] = useState(false);
-  const [aadharLast4, setAadharLast4] = useState("");
+// A simple BrandLogo component for display
+const BrandLogo = () => (
+  <div className="text-4xl font-bold text-indigo-600">
+    🗳️
+  </div>
+);
+
+function Login() {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // demo: send OTP (in production call your backend)
-  const handleGetOtp = () => {
-    setOtpSent(true);
-    // in dev show the demo OTP in console (for easier testing)
-    console.log("Demo OTP is: 1234");
-    alert("OTP sent to Aadhaar-linked phone number (demo OTP = 1234).");
-  };
-
-  // demo OTP verify
-  const handleVerifyOtp = () => {
-    if (otp === "1234") {
-      setIsOtpVerified(true);
-      alert("OTP verified successfully.");
-    } else {
-      alert("Invalid OTP. Try again.");
-    }
-  };
-
-  const handleLogin = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
-    // load stored user
-    const storedRaw = localStorage.getItem("user");
-    if (!storedRaw) {
-      alert("No registered user found. Please register first.");
-      navigate("/register");
+    if (!username || !password) {
+      setError("Please enter both username and password.");
       return;
     }
 
-    let user;
+    setLoading(true);
     try {
-      user = JSON.parse(storedRaw);
+      const response = await axios.post("http://localhost:5000/login", {
+        username,
+        password,
+      });
+
+      // On successful login, store user info and navigate to a dashboard
+      alert("Login successful!");
+      localStorage.setItem("currentUser", JSON.stringify({ username, ...response.data }));
+      navigate("/dashboard"); // Or any other protected route
+
     } catch (err) {
-      console.error("Failed to parse stored user:", err);
-      alert("Saved user data is corrupted. Please re-register.");
-      navigate("/register");
-      return;
+      console.error("Login failed:", err);
+      setError(err.response?.data?.error || "An unexpected error occurred during login.");
+    } finally {
+      setLoading(false);
     }
-
-    // require OTP verified
-    if (!isOtpVerified) {
-      alert("Please verify OTP before logging in.");
-      return;
-    }
-
-    // check password
-    if (String(user.password || "") !== String(password || "")) {
-      // password mismatch -> offer forgot-password
-      alert("Incorrect password. If you forgot your password, use Forgot Password.");
-      return;
-    }
-
-    // if stored user contains aadhaarLast4, enforce it; otherwise skip (backwards compatible)
-    if (user.aadharLast4) {
-      if (String(user.aadharLast4) !== String(aadharLast4)) {
-        alert("Aadhaar last 4 digits do not match our records.");
-        return;
-      }
-    } else {
-      // stored user doesn't have last4 — optionally accept any or warn
-      console.log("Stored user has no aadhaarLast4 field; skipping last-4 check.");
-    }
-
-    // all checks passed
-    alert("Login successful!");
-    // set current user marker if you use it (optional)
-    localStorage.setItem("currentUser", user.phone || user.aadharFileName || "user");
-    navigate("/dashboard");
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-96">
-        <h2 className="text-2xl font-bold mb-6 text-center text-blue-600">Login</h2>
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <div className="bg-white shadow-xl rounded-2xl w-full max-w-sm p-8 space-y-6">
+        <div className="flex justify-center">
+          <BrandLogo />
+        </div>
+        <h2 className="text-2xl font-bold mb-6 text-center text-slate-800">
+          Voter Login
+        </h2>
 
-        <form onSubmit={handleLogin}>
-          {/* OTP - send / verify */}
-          {!otpSent ? (
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={handleGetOtp}
-                className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600"
-              >
-                Get OTP
-              </button>
-            </div>
-          ) : !isOtpVerified ? (
-            <div className="mb-4">
-              <label className="block text-gray-700">Enter OTP</label>
-              <input
-                type="text"
-                className="w-full p-2 border rounded-lg"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                onClick={handleVerifyOtp}
-                className="mt-2 w-full bg-green-500 text-white p-2 rounded-lg hover:bg-green-600"
-              >
-                Verify OTP
-              </button>
-            </div>
-          ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Username</label>
+            <input
+              type="text"
+              placeholder="Enter your username"
+              className="w-full mt-1 border border-gray-300 rounded-lg p-2 text-sm"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
 
-          {/* After OTP verified ask for Aadhaar last 4 and password */}
-          {isOtpVerified && (
-            <>
-              <div className="mb-4">
-                <label className="block text-gray-700">Aadhaar Last 4 Digits</label>
-                <input
-                  type="text"
-                  className="w-full p-2 border rounded-lg"
-                  value={aadharLast4}
-                  onChange={(e) => setAadharLast4(e.target.value.replace(/\D/g, ""))}
-                  maxLength={4}
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              className="w-full mt-1 border border-gray-300 rounded-lg p-2 text-sm"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
 
-              <div className="mb-4">
-                <label className="block text-gray-700">Password</label>
-                <input
-                  type="password"
-                  className="w-full p-2 border rounded-lg"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
-              >
-                Login
-              </button>
-            </>
-          )}
+          <button type="submit" className="w-full btn bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </button>
         </form>
 
+        {error && <p className="mt-4 text-center text-sm text-red-600">{error}</p>}
+
         <p className="mt-4 text-center text-sm">
-          <Link to="/forgot-password" className="text-red-500 hover:underline">
+          <Link to="/forgot-password" className="text-indigo-600 hover:underline">
             Forgot Password?
           </Link>
         </p>
 
         <p className="mt-2 text-center text-sm">
-          Don’t have an account? <Link to="/register" className="text-blue-600 hover:underline">Register</Link>
-        </p>
-
-        <p className="mt-2 text-center text-sm">
-          <Link to="/" className="text-gray-600 hover:underline">Back to Home</Link>
+          Don’t have an account?{" "}
+          <Link to= "/register/step1" className="text-indigo-600 hover:underline">
+            Register here
+          </Link>
         </p>
       </div>
     </div>
   );
 }
 
-
-
-
+export default Login;

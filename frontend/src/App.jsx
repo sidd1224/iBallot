@@ -1,44 +1,42 @@
-// src/App.jsx
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-import Home from "./pages/Home";
-import Register from "./pages/Register";
-import ReRegister from "./pages/ReRegister";
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import Dashboard from "./pages/Dashboard";
-import Election from "./pages/Election";
-import ThankYou from "./pages/ThankYou";
+// Import the page components you have created
+import Login from './pages/Login'; 
+// --- PATHS CORRECTED HERE ---
+// The import path now points to the 'pages' directory.
+import RegisterStep1 from './pages/register_1'; 
+import RegisterStep2 from './pages/register_2'; 
 
 export default function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        {/* Home */}
-        <Route path="/" element={<Home />} />
+        {/* --- Main Routes --- */}
+        
+        {/* Redirect the root URL "/" to the login page */}
+        <Route path="/" element={<Navigate to="/login" />} />
 
-        {/* Auth Pages */}
-        <Route path="/register" element={<Register />} />
-        <Route path="/reregister" element={<ReRegister />} />
+        {/* Route for the login page */}
         <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Dashboard */}
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* --- Registration Flow Routes --- */}
+        
+        {/* This path has been updated to match the URL from your screenshot */}
+        <Route path="/register/step1" element={<RegisterStep1 />} />
 
-        {/* Election */}
-        <Route path="/election" element={<Election />} />
+        {/* This will now correctly find and display your RegisterStep2 component */}
+        <Route path="/register/step2" element={<RegisterStep2 />} />
 
-        {/* Flow Page */}
-        <Route path="/thankyou" element={<ThankYou />} />
+        {/* --- Add other application routes here, e.g., dashboard --- */}
+        {/* <Route path="/dashboard" element={<Dashboard />} /> */}
 
-        {/* Fallback */}
-        <Route path="*" element={<Home />} />
+        {/* A catch-all route for any page that doesn't exist */}
+        <Route path="*" element={<h1>404 - Page Not Found</h1>} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 
-
+export default App;
 

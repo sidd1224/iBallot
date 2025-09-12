@@ -6,56 +6,55 @@ const crypto = require("crypto");
 const pool = require("../../database/db");
 const { decrypt } = require("../../utils/aesUtils");
 const { generateVoterHash } = require("../../utils/hashUtils");
-const admin = require("../../utils/firebaseAdmin");
 
 require("dotenv").config();
 
+/**
+ * @route   POST /login
+ * @desc    Authenticates a user with username and password.
+ * @access  Public
+ */
 router.post("/", async (req, res) => {
   try {
-    const { idToken, password } = req.body;
-    if (!idToken || !password) {
-      return res.status(400).json({ error: "Missing fields" });
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password are required." });
     }
 
-    // Step 1: Verify Firebase token
-    const decoded = await admin.auth().verifyIdToken(idToken);
-    const phone = decoded.phone_number;
-    if (!phone) return res.status(400).json({ error: "Phone number not found in token" });
-
-    // Step 2: Hash phone
-    const phoneHash = crypto.createHash("sha256").update(phone).digest("hex");
-
-    // Step 3: Fetch user from DB
-    const result = await pool.query("SELECT * FROM voter_metadata WHERE phone = $1", [phoneHash]);
+    // Step 1: Find the user by their plain-text username.
+    const result = await pool.query("SELECT * FROM voter_metadata WHERE username = $1", [username]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Voter not registered" });
+      return res.status(401).json({ error: "Invalid credentials." });
     }
-
     const user = result.rows[0];
 
-    // Step 4: Verify password
-    const isMatch = await bcrypt.compare(password, user.hashed_password);
-    if (!isMatch) return res.status(401).json({ error: "Incorrect password" });
+    // Step 2: Compare the provided password with the stored bcrypt hash.
+    const isPasswordMatch = await bcrypt.compare(password, user.hashed_password);
+    if (!isPasswordMatch) {
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
 
-    // Step 5: Decrypt blob to extract refId
-    const key = crypto.scryptSync(phone, Buffer.from(user.salt, "hex"), 32);
-    const decryptedBlob = decrypt(Buffer.from(user.encrypted_blob, "base64"), key); // ✅ Decode before decrypting
+    // --- DECRYPTION LOGIC UPDATED HERE ---
+    // Step 3: Decrypt the user's data blob using the consistent, global secret key.
+    // This now matches the encryption method used in register_complete.js.
+    const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
+    const decryptedBlobString = decrypt(user.encrypted_blob, secretKey);
+    const blobData = JSON.parse(decryptedBlobString); // Contains reference_id
 
-    const { reference_id: refId } = JSON.parse(decryptedBlob);
+    // Step 4: Regenerate the voter hash to confirm identity and for later use.
+    const voterHash = "0x" + generateVoterHash(blobData.reference_id, process.env.SECRET_SALT);
 
-    // Step 6: Regenerate voter hash
-    const voterHash = "0x" + generateVoterHash(refId, process.env.SECRET_SALT);
-
-    // Step 7: Success
+    // Step 5: Send a success response.
     res.status(200).json({
       message: "✅ Login successful",
-      voterHash,
+      voterHash: voterHash,
     });
 
   } catch (err) {
-    console.error("❌ Login error:", err);
-    res.status(500).json({ error: "Login failed", details: err.message });
+    console.error("❌ Login error:", err); // Log the detailed error on the server
+    res.status(500).json({ error: "Login failed due to an internal server error." });
   }
 });
 
 module.exports = router;
+
