@@ -13,23 +13,11 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
--- Drop old tables if they exist to ensure a clean slate
-DROP TABLE IF EXISTS public.voter_control CASCADE;
-DROP TABLE IF EXISTS public.voter_metadata CASCADE;
-DROP TABLE IF EXISTS public.eci_admin_data CASCADE;
-DROP TABLE IF EXISTS public.users CASCADE;
-DROP TABLE IF EXISTS public.digilocker_mock_data CASCADE;
-DROP TABLE IF EXISTS public.elections CASCADE;
-DROP TABLE IF EXISTS public.candidates CASCADE;
-DROP TABLE IF EXISTS public.assembly_constituencies CASCADE;
-DROP TABLE IF EXISTS public.parlimentary_constituencies CASCADE;
-
-
 SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: eci_admin_data; Type: TABLE; Schema: public; Owner: postgres
+-- Name: eci_admin_data; Type: TABLE; Schema: public;
 --
 CREATE TABLE public.eci_admin_data (
     id SERIAL PRIMARY KEY,
@@ -42,7 +30,7 @@ CREATE TABLE public.eci_admin_data (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public.eci_admin_data OWNER TO postgres;
+
 COMMENT ON TABLE public.eci_admin_data IS 'ECI admin table containing voter constituency and wallet data';
 COMMENT ON COLUMN public.eci_admin_data.uid_hash IS 'Hashed Aadhaar UID';
 COMMENT ON COLUMN public.eci_admin_data.ac_name IS 'Assembly Constituency name';
@@ -52,7 +40,7 @@ COMMENT ON COLUMN public.eci_admin_data.enc_private_key IS 'Encrypted private ke
 COMMENT ON COLUMN public.eci_admin_data.wallet_address IS 'Blockchain wallet address';
 
 --
--- Name: users; Type: TABLE; Schema: public; Owner: postgres
+-- Name: users; Type: TABLE; Schema: public;
 --
 CREATE TABLE public.users (
     id SERIAL PRIMARY KEY,
@@ -64,7 +52,7 @@ CREATE TABLE public.users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP
 );
-ALTER TABLE public.users OWNER TO postgres;
+
 COMMENT ON TABLE public.users IS 'User registration data';
 COMMENT ON COLUMN public.users.username IS 'Unique username';
 COMMENT ON COLUMN public.users.uid_hash IS 'Hashed Aadhaar UID (links to eci_admin_data)';
@@ -73,7 +61,7 @@ COMMENT ON COLUMN public.users.phone_number IS 'Phone number from Digilocker';
 COMMENT ON COLUMN public.users.full_name IS 'Full name from Digilocker';
 
 --
--- Name: digilocker_mock_data; Type: TABLE; Schema: public; Owner: postgres
+-- Name: digilocker_mock_data; Type: TABLE; Schema: public;
 --
 CREATE TABLE public.digilocker_mock_data (
     id SERIAL PRIMARY KEY,
@@ -83,11 +71,11 @@ CREATE TABLE public.digilocker_mock_data (
     full_name VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public.digilocker_mock_data OWNER TO postgres;
+
 COMMENT ON TABLE public.digilocker_mock_data IS 'Mock data table for Digilocker verification testing';
 
 --
--- Name: elections; Type: TABLE; Schema: public; Owner: postgres
+-- Name: elections; Type: TABLE; Schema: public;
 --
 CREATE TABLE public.elections (
     election_id character varying NOT NULL,
@@ -99,10 +87,10 @@ CREATE TABLE public.elections (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT elections_type_check CHECK ((type = ANY (ARRAY['STATE_LEGISLATIVE'::text, 'PARLIAMENTARY'::text])))
 );
-ALTER TABLE public.elections OWNER TO postgres;
+
 
 --
--- Name: candidates; Type: TABLE; Schema: public; Owner: postgres
+-- Name: candidates; Type: TABLE; Schema: public;
 --
 CREATE TABLE public.candidates (
     id integer NOT NULL,
@@ -113,48 +101,14 @@ CREATE TABLE public.candidates (
     parliamentary_id text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE public.candidates OWNER TO postgres;
+
 CREATE SEQUENCE public.candidates_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
-ALTER SEQUENCE public.candidates_id_seq OWNER TO postgres;
 ALTER SEQUENCE public.candidates_id_seq OWNED BY public.candidates.id;
 ALTER TABLE ONLY public.candidates ALTER COLUMN id SET DEFAULT nextval('public.candidates_id_seq'::regclass);
 
 
 --
--- Name: assembly_constituencies; Type: TABLE; Schema: public; Owner: postgres
---
-CREATE TABLE public.assembly_constituencies (
-    id integer NOT NULL,
-    state_name character varying(100) NOT NULL,
-    district_name character varying(100) NOT NULL,
-    assembly_name character varying(150) NOT NULL,
-    assembly_id character varying(20)
-);
-ALTER TABLE public.assembly_constituencies OWNER TO postgres;
-CREATE SEQUENCE public.assembly_constituencies_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
-ALTER SEQUENCE public.assembly_constituencies_id_seq OWNER TO postgres;
-ALTER SEQUENCE public.assembly_constituencies_id_seq OWNED BY public.assembly_constituencies.id;
-ALTER TABLE ONLY public.assembly_constituencies ALTER COLUMN id SET DEFAULT nextval('public.assembly_constituencies_id_seq'::regclass);
-
---
--- Name: parlimentary_constituencies; Type: TABLE; Schema: public; Owner: postgres
---
-CREATE TABLE public.parlimentary_constituencies (
-    id integer NOT NULL,
-    state_name character varying(200) NOT NULL,
-    district_name character varying(500) NOT NULL,
-    parliamentary_name character varying(150) NOT NULL,
-    parliamentary_id character varying(50)
-);
-ALTER TABLE public.parlimentary_constituencies OWNER TO postgres;
-CREATE SEQUENCE public.parliamentary_constituencies_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
-ALTER SEQUENCE public.parliamentary_constituencies_id_seq OWNER TO postgres;
-ALTER SEQUENCE public.parliamentary_constituencies_id_seq OWNED BY public.parlimentary_constituencies.id;
-ALTER TABLE ONLY public.parlimentary_constituencies ALTER COLUMN id SET DEFAULT nextval('public.parliamentary_constituencies_id_seq'::regclass);
-
-
---
--- Data for Name: digilocker_mock_data; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: digilocker_mock_data; Type: TABLE DATA; Schema: public;
 --
 COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 9876543210	123456789012	1990-05-15	Rajesh Kumar
@@ -172,7 +126,7 @@ COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 \.
 
 --
--- Data for Name: eci_admin_data; Type: TABLE DATA; Schema: public; Owner: postgres
+-- Data for Name: eci_admin_data; Type: TABLE DATA; Schema: public;
 --
 COPY public.eci_admin_data (uid_hash, ac_name, pc_name, ward_number) FROM stdin;
 sample_hash_1	Sample Assembly Constituency 1	Sample Parliament Constituency 1	Ward 001
@@ -181,7 +135,7 @@ sample_hash_3	Sample Assembly Constituency 3	Sample Parliament Constituency 3	Wa
 \.
 
 --
--- Name: candidates candidates_election_id_candidate_id_assembly_id_parliamenta_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: candidates candidates_election_id_candidate_id_assembly_id_parliamenta_key; Type: CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.candidates
@@ -189,7 +143,7 @@ ALTER TABLE ONLY public.candidates
 
 
 --
--- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.candidates
@@ -197,7 +151,7 @@ ALTER TABLE ONLY public.candidates
 
 
 --
--- Name: elections elections_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: elections elections_pkey; Type: CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.elections
@@ -205,7 +159,7 @@ ALTER TABLE ONLY public.elections
 
 
 --
--- Name: candidates candidates_election_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: candidates candidates_election_id_fkey; Type: FK CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.candidates

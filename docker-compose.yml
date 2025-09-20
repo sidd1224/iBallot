@@ -26,7 +26,7 @@ services:
     working_dir: /app
     restart: always
     ports:
-      - "${PORT}:5000"
+      - "${PORT_I}:5000"
     depends_on:
       db:
         condition: service_healthy
@@ -40,14 +40,10 @@ services:
       - CONTRACT_ADDRESS
       - PRIVATE_KEY
       - RELAYER_PRIVATE_KEY
-      - FIREBASE_AUTH_EMULATOR_HOST
       - POSTGRES_USER
       - POSTGRES_PASSWORD
       - POSTGRES_DB
-      - PORT
-      - FIREBASE_PROJECT_ID
-      - FIREBASE_CLIENT_EMAIL
-      - FIREBASE_PRIVATE_KEY
+      - PORT_I
       - DB_URL
       - SECRET_SALT
       - RPC_URL
