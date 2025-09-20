@@ -1,148 +1,98 @@
 const request = require("supertest");
-const express = require("express");
-const crypto = require("crypto");
+const { Contract } = require("ethers");
 
-// Create a persistent mock for the contract's method before other mocks
+// Mock database
+const mockQuery = jest.fn();
+const mockRelease = jest.fn();
+jest.mock("../../database/db", () => ({
+  connect: jest.fn().mockResolvedValue({
+    query: mockQuery,
+    release: mockRelease,
+  }),
+}));
+const pool = require("../../database/db");
+
+// Mock ethers Contract
 const mockHasVoted = jest.fn();
-
-// Mock dependencies
-jest.mock("../../database/db");
-jest.mock("../../utils/aesUtils", () => ({
-    decrypt: jest.fn(),
-}));
-jest.mock("../../utils/hashUtils", () => ({
-    generateVoterHash: jest.fn(),
-}));
 jest.mock("ethers", () => {
-    const originalEthers = jest.requireActual("ethers");
-    // Mock the Contract constructor to return an object with our mock function
-    return {
-        ...originalEthers,
-        Contract: jest.fn().mockImplementation(() => ({
-            hasVoted: mockHasVoted,
-        })),
-    };
+  const original = jest.requireActual("ethers");
+  return {
+    ...original,
+    Contract: jest.fn().mockImplementation(() => ({
+      hasVoted: mockHasVoted,
+    })),
+  };
 });
 
-const pool = require("../../database/db");
-const { decrypt } = require("../../utils/aesUtils");
-const { generateVoterHash } = require("../../utils/hashUtils");
-// This require needs to come AFTER the mocks are configured
-const statusRouter = require("../../routes/user/status");
+let app;
 
-// Setup express app
-const app = express();
-app.use(express.json());
-app.use("/", statusRouter);
+describe("POST /status", () => {
+  beforeEach(() => {
+    jest.resetModules();
+    app = require("../../app"); // Import app after mocks
 
-describe("POST / (Voter Status Route)", () => {
-    beforeEach(() => {
-        // Clear all mocks before each test to ensure isolation
-        jest.clearAllMocks();
-        mockHasVoted.mockClear();
-    });
+    // Reset mocks
+    mockQuery.mockReset();
+    mockRelease.mockReset();
+    mockHasVoted.mockReset();
+  });
 
-    test("should return 200 with hasVoted: false for a valid, non-voted user", async () => {
-        // Arrange
-        const mockPhone = "1234567890";
-        const mockSalt = "a1b2c3d4";
-        const mockEncryptedBlob = "encryptedData";
-        const mockDecryptedData = JSON.stringify({ reference_id: "ref123", phone: mockPhone });
-        const mockVoterHash = "0xabc123";
+  it("returns voting status successfully", async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ uid_hash: "abcd1234" }] }) // user query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ac_name: "AC-1",
+            pc_name: "PC-1",
+            ward_number: 5,
+            wallet_address: "0xWalletAddress",
+          },
+        ],
+      }); // ECI data query
+    mockHasVoted.mockResolvedValueOnce(true);
 
-        pool.query.mockResolvedValueOnce({
-            rows: [{ encrypted_blob: mockEncryptedBlob, salt: mockSalt }],
-        });
-        decrypt.mockReturnValue(mockDecryptedData);
-        generateVoterHash.mockReturnValue("abc123");
-        mockHasVoted.mockResolvedValue(false);
+    const res = await request(app)
+      .post("/status")
+      .send({ username: "user1" });
 
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: mockPhone });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("voterHash", "0xabcd1234");
+    expect(res.body).toHaveProperty("hasVoted", true);
+    expect(res.body.constituency).toHaveProperty("assembly", "AC-1");
+    expect(res.body.constituency).toHaveProperty("parliament", "PC-1");
+    expect(res.body.constituency).toHaveProperty("ward", 5);
+    expect(res.body).toHaveProperty("walletAddress", "0xWalletAddress");
+  });
 
-        // Assert
-        expect(response.status).toBe(200);
-        expect(response.body).toEqual({ voterHash: mockVoterHash, hasVoted: false });
-    });
+  it("returns 404 if user not found", async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // user not found
 
-    test("should return 200 with hasVoted: true for a user who has already voted", async () => {
-        // Arrange
-        pool.query.mockResolvedValueOnce({
-            rows: [{ encrypted_blob: "data", salt: "salt" }],
-        });
-        decrypt.mockReturnValue(JSON.stringify({ reference_id: "ref456" }));
-        generateVoterHash.mockReturnValue("def456");
-        mockHasVoted.mockResolvedValue(true);
+    const res = await request(app)
+      .post("/status")
+      .send({ username: "nouser" });
 
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: "0987654321" });
+    expect(res.status).toBe(404);
+    expect(res.body).toHaveProperty("error", "Voter not found.");
+  });
 
-        // Assert
-        expect(response.status).toBe(200);
-        expect(response.body.hasVoted).toBe(true);
-    });
+  it("returns 400 if username missing", async () => {
+    const res = await request(app).post("/status").send({}); // no username
 
-    test("should return 400 if phone number is not provided", async () => {
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({});
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("error", "Username is required.");
+  });
 
-        // Assert
-        expect(response.status).toBe(400);
-        expect(response.body.error).toBe("Phone required");
-    });
+  it("handles smart contract errors gracefully", async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ uid_hash: "abcd1234" }] });
+    mockHasVoted.mockRejectedValueOnce(new Error("Contract failure"));
 
-    test("should return 404 if voter is not found in the database", async () => {
-        // Arrange
-        pool.query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app)
+      .post("/status")
+      .send({ username: "user1" });
 
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: "1112223333" });
-
-        // Assert
-        expect(response.status).toBe(404);
-        expect(response.body.error).toBe("Voter not found");
-    });
-
-    test("should return 500 if the database query fails", async () => {
-        // Arrange
-        pool.query.mockRejectedValueOnce(new Error("DB Error"));
-
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: "1234567890" });
-
-        // Assert
-        expect(response.status).toBe(500);
-        expect(response.body.error).toBe("Status check failed");
-        expect(response.body.details).toBe("DB Error");
-    });
-
-    test("should return 500 if the smart contract call fails", async () => {
-        // Arrange
-        pool.query.mockResolvedValueOnce({
-            rows: [{ encrypted_blob: "data", salt: "salt" }],
-        });
-        decrypt.mockReturnValue(JSON.stringify({ reference_id: "ref789" }));
-        generateVoterHash.mockReturnValue("ghi789");
-        mockHasVoted.mockRejectedValue(new Error("Blockchain Error"));
-
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: "4445556666" });
-
-        // Assert
-        expect(response.status).toBe(500);
-        expect(response.body.error).toBe("Status check failed");
-        expect(response.body.details).toBe("Blockchain Error");
-    });
+    expect(res.status).toBe(500);
+    expect(res.body).toHaveProperty("error", "Failed to check voter status");
+    expect(res.body).toHaveProperty("details", "Contract failure");
+  });
 });

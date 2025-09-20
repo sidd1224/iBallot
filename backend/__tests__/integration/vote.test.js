@@ -1,21 +1,32 @@
 const request = require("supertest");
 const express = require("express");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 
-// Mock dependencies before any other imports
+// --- Mocks Setup ---
+// Mock dependencies before any other modules are imported
+
+// Mock the database
+jest.mock("../../database/db");
+const pool = require("../../database/db");
+
+// Mock utility functions
+jest.mock("../../utils/aesUtils", () => ({
+    decrypt: jest.fn(),
+}));
+const { decrypt } = require("../../utils/aesUtils");
+
+// Mock blockchain components
 const mockCastVoteMeta = jest.fn();
 const mockGetNonce = jest.fn();
-const mockConnect = jest.fn(() => ({
-    getNonce: mockGetNonce,
-    castVoteMeta: mockCastVoteMeta,
+jest.mock("../../blockchain/contract", () => ({
+    connect: jest.fn().mockReturnValue({
+        getNonce: mockGetNonce,
+        castVoteMeta: mockCastVoteMeta,
+    }),
 }));
 
-jest.mock("../../database/db");
-jest.mock("../../utils/aesUtils", () => ({ decrypt: jest.fn() }));
-jest.mock("../../utils/hashUtils", () => ({ generateVoterHash: jest.fn() }));
-jest.mock("../../blockchain/contract", () => ({
-    connect: mockConnect,
-}));
+// Mock ethers library
 jest.mock("ethers", () => {
     const originalEthers = jest.requireActual("ethers");
     return {
@@ -27,127 +38,132 @@ jest.mock("ethers", () => {
     };
 });
 
-const pool = require("../../database/db");
-const { decrypt } = require("../../utils/aesUtils");
-const { generateVoterHash } = require("../../utils/hashUtils");
-// Import the router after all mocks are set up
+// Import the router after mocks are set up
 const voteRouter = require("../../routes/user/vote");
 
 // Setup express app
 const app = express();
 app.use(express.json());
-app.use("/", voteRouter);
+app.use("/vote", voteRouter);
 
-describe("POST / (Vote Casting Route)", () => {
+
+describe("POST /vote", () => {
+    const mockUser = {
+        id: 1,
+        username: "testvoter",
+        password: "hashedpassword",
+        uid_hash: crypto.randomBytes(32).toString('hex'),
+    };
+    const mockEciData = {
+        ac_name: "Test AC",
+        pc_name: "Test PC",
+        ward_number: "123",
+        enc_private_key: "encrypted_private_key_data",
+    };
+    const mockPrivateKey = "0x" + crypto.randomBytes(32).toString('hex');
+
     beforeEach(() => {
-        // Clear mocks before each test
+        // Clear all mock implementations and call history before each test
         jest.clearAllMocks();
     });
 
-    test("should successfully cast a vote for a valid user", async () => {
+    test("should successfully cast a vote with valid credentials and data", async () => {
         // Arrange
-        const mockPhone = "1234567890";
-        // FIX: assembly_id must be a number to be converted to a BigInt
-        const mockMetadata = { reference_id: "ref123", assembly_id: 1 };
-        const mockPrivateKey = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        const mockVoterHashRaw = crypto.randomBytes(32).toString('hex');
-
-        // Mock DB calls
         pool.query
-            .mockResolvedValueOnce({ // Fetch metadata
-                rows: [{ encrypted_blob: "enc_blob", salt: "salt" }],
-            })
-            .mockResolvedValueOnce({ // Fetch private key
-                rows: [{ enc_private_key: "enc_key" }],
-            });
-
-        // Mock utility functions
-        decrypt
-            .mockReturnValueOnce(Buffer.from(JSON.stringify(mockMetadata))) // Decrypt metadata
-            .mockReturnValueOnce(Buffer.from(mockPrivateKey)); // Decrypt private key
-        generateVoterHash.mockReturnValue(mockVoterHashRaw);
-
-        // Mock contract interactions
-        mockGetNonce.mockResolvedValue(1);
+            .mockResolvedValueOnce({ rows: [mockUser] }) // Mock user fetch
+            .mockResolvedValueOnce({ rows: [mockEciData] }); // Mock ECI data fetch
+        
+        bcrypt.compare = jest.fn().mockResolvedValue(true);
+        decrypt.mockReturnValue(mockPrivateKey);
+        mockGetNonce.mockResolvedValue(1); // Mock nonce
         mockCastVoteMeta.mockResolvedValue({
-            hash: "0x_tx_hash",
+            hash: "0x_mock_tx_hash",
             wait: jest.fn().mockResolvedValue({ status: 1 }),
         });
 
         // Act
         const response = await request(app)
-            .post("/")
-            .send({ phone: mockPhone, electionId: 1, candidateId: 5 });
+            .post("/vote")
+            .send({
+                username: "testvoter",
+                password: "password123",
+                electionId: 1,
+                candidateId: 0,
+            });
 
         // Assert
         expect(response.status).toBe(200);
-        expect(response.body).toEqual({ success: true, txHash: "0x_tx_hash" });
+        expect(response.body.success).toBe(true);
+        expect(response.body.message).toBe("Vote cast successfully!");
+        expect(response.body.txHash).toBe("0x_mock_tx_hash");
         expect(mockCastVoteMeta).toHaveBeenCalled();
     });
 
-    test("should return 400 if required fields are missing", async () => {
-        // Act
-        const response = await request(app)
-            .post("/")
-            .send({ phone: "1234567890" }); // Missing electionId and candidateId
-
-        // Assert
-        expect(response.status).toBe(400);
-        expect(response.body.error).toBe("Missing fields");
-    });
-
-    test("should return 404 if voter metadata is not found", async () => {
+    test("should return 401 for invalid password", async () => {
         // Arrange
-        pool.query.mockResolvedValueOnce({ rows: [] });
+        pool.query.mockResolvedValueOnce({ rows: [mockUser] });
+        bcrypt.compare = jest.fn().mockResolvedValue(false); // Simulate wrong password
 
         // Act
         const response = await request(app)
-            .post("/")
-            .send({ phone: "1234567890", electionId: 1, candidateId: 5 });
+            .post("/vote")
+            .send({
+                username: "testvoter",
+                password: "wrongpassword",
+                electionId: 1,
+                candidateId: 0,
+            });
 
         // Assert
-        expect(response.status).toBe(404);
-        expect(response.body.error).toBe("Voter not found");
+        expect(response.status).toBe(401);
+        expect(response.body.error).toBe("Invalid credentials.");
     });
-
-    test("should return 404 if voter wallet (private key) is not found", async () => {
+    
+    test("should return 404 if ECI data is not found for the user", async () => {
         // Arrange
         pool.query
-            .mockResolvedValueOnce({ rows: [{ encrypted_blob: "enc_blob", salt: "salt" }] })
-            .mockResolvedValueOnce({ rows: [] }); // No private key found
-        decrypt.mockReturnValueOnce(Buffer.from(JSON.stringify({ reference_id: "ref123", assembly_id: 1 })));
-        generateVoterHash.mockReturnValue(crypto.randomBytes(32).toString('hex'));
+            .mockResolvedValueOnce({ rows: [mockUser] }) // User found
+            .mockResolvedValueOnce({ rows: [] }); // ECI data not found
+        bcrypt.compare = jest.fn().mockResolvedValue(true);
 
         // Act
         const response = await request(app)
-            .post("/")
-            .send({ phone: "1234567890", electionId: 1, candidateId: 5 });
-
+            .post("/vote")
+            .send({
+                username: "testvoter",
+                password: "password123",
+                electionId: 1,
+                candidateId: 0,
+            });
+            
         // Assert
         expect(response.status).toBe(404);
-        expect(response.body.error).toBe("Voter wallet not found");
+        expect(response.body.error).toBe("User data not found in ECI records.");
     });
 
-    test("should return 500 if contract transaction fails", async () => {
+    test("should return 500 if the blockchain transaction fails", async () => {
         // Arrange
         pool.query
-            .mockResolvedValueOnce({ rows: [{ encrypted_blob: "enc_blob", salt: "salt" }] })
-            .mockResolvedValueOnce({ rows: [{ enc_private_key: "enc_key" }] });
-        decrypt
-            .mockReturnValueOnce(Buffer.from(JSON.stringify({ reference_id: "ref123", assembly_id: 1 })))
-            .mockReturnValueOnce(Buffer.from("priv_key"));
-        generateVoterHash.mockReturnValue(crypto.randomBytes(32).toString('hex'));
+            .mockResolvedValueOnce({ rows: [mockUser] })
+            .mockResolvedValueOnce({ rows: [mockEciData] });
+        bcrypt.compare = jest.fn().mockResolvedValue(true);
+        decrypt.mockReturnValue(mockPrivateKey);
         mockGetNonce.mockResolvedValue(1);
-        mockCastVoteMeta.mockRejectedValue(new Error("Gas fee too low"));
+        mockCastVoteMeta.mockRejectedValue(new Error("Blockchain timeout")); // Simulate transaction error
 
         // Act
         const response = await request(app)
-            .post("/")
-            .send({ phone: "1234567890", electionId: 1, candidateId: 5 });
-
+            .post("/vote")
+            .send({
+                username: "testvoter",
+                password: "password123",
+                electionId: 1,
+                candidateId: 0,
+            });
+            
         // Assert
         expect(response.status).toBe(500);
         expect(response.body.success).toBe(false);
-        expect(response.body.error).toBe("Gas fee too low");
+        expect(response.body.error).toBe("Blockchain timeout");
     });
 });

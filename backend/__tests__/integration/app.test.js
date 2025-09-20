@@ -3,15 +3,16 @@ const app = require("../../app");
 
 // Mock all route handlers to isolate the app's setup for testing
 jest.mock("../../routes/user/register", () => (req, res) => res.sendStatus(200));
-jest.mock("../../routes/user/re-register", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/user/login", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/user/status", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/user/vote", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/user/candidateList", () => (req, res) => res.sendStatus(200));
+jest.mock("../../routes/user/digilocker", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/admin/auth", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/admin/elections", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/admin/candidates", () => (req, res) => res.sendStatus(200));
 jest.mock("../../routes/admin/results", () => (req, res) => res.sendStatus(200));
+jest.mock("../../routes/admin/eciData", () => (req, res) => res.sendStatus(200));
 
 
 describe("Express App Configuration (app.js)", () => {
@@ -39,15 +40,16 @@ describe("Express App Configuration (app.js)", () => {
         // A helper array of routes to test
         const routes = [
             "/register",
-            "/re-register",
             "/login",
             "/status",
             "/vote",
             "/candidates",
+            "/digilocker",
             "/admin/auth",
             "/admin/elections",
             "/admin/candidates",
             "/admin/results",
+            "/admin/eci-data",
         ];
 
         // Dynamically create a test for each route
@@ -68,4 +70,3 @@ describe("Express App Configuration (app.js)", () => {
         expect(response.statusCode).toBe(404);
     });
 });
-

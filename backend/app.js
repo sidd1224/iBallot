@@ -17,7 +17,7 @@ app.use("/register", require("./routes/user/register"));
 app.use("/digilocker", require("./routes/user/digilocker"));
 
 // --- Other routes remain the same ---
-app.use("/re-register", require("./routes/user/re-register"));
+
 app.use("/login", require("./routes/user/login"));
 app.use("/status", require("./routes/user/status"));
 app.use("/vote", require("./routes/user/vote"));
