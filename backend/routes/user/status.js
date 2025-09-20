@@ -1,11 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const crypto = require("crypto");
 const { JsonRpcProvider, Contract } = require("ethers");
 
 const pool = require("../../database/db");
-const { decrypt } = require("../../utils/aesUtils");
-const { generateVoterHash } = require("../../utils/hashUtils");
 
 require("dotenv").config();
 
@@ -18,10 +15,12 @@ const votingContract = new Contract(contractAddress, abi, provider);
 
 /**
  * @route   POST /status
- * @desc    Checks if a voter has already cast their vote.
+ * @desc    Checks if a voter has already cast their vote using uid_hash.
  * @access  Public (requires username)
  */
 router.post("/", async (req, res) => {
+  let client;
+  
   try {
     // Step 1: Get username from the request body.
     const { username } = req.body;
@@ -30,39 +29,51 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Username is required." });
     }
 
-    // Step 2: Fetch the user's encrypted data using their username.
-    const result = await pool.query(
-      "SELECT encrypted_blob FROM voter_metadata WHERE username = $1",
+    client = await pool.connect();
+
+    // Step 2: Fetch the user's uid_hash using their username from new users table.
+    const userResult = await client.query(
+      "SELECT uid_hash FROM users WHERE username = $1",
       [username]
     );
 
-    if (result.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: "Voter not found." });
     }
 
-    const { encrypted_blob } = result.rows[0];
+    const { uid_hash } = userResult.rows[0];
 
-    // Step 3: Decrypt the blob using the correct secret key.
-    const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
-    const decryptedString = decrypt(encrypted_blob, secretKey);
-    const metadata = JSON.parse(decryptedString);
+    // Step 3: Generate the voter hash from the uid_hash.
+    const voterHash = "0x" + uid_hash;
 
-    const refId = metadata.reference_id;
-    if (!refId) {
-      throw new Error("Critical: Reference ID not found in decrypted data blob.");
-    }
-
-    // Step 4: Generate the voter hash from the reference ID.
-    const voterHash = "0x" + generateVoterHash(refId, process.env.SECRET_SALT);
-
-    // Step 5: Check the smart contract to see if the voter has already voted.
+    // Step 4: Check the smart contract to see if the voter has already voted.
     const hasVoted = await votingContract.hasVoted(voterHash);
 
-    res.status(200).json({ voterHash, hasVoted });
+    // Step 5: Get additional user info from ECI admin data
+    const eciResult = await client.query(
+      "SELECT ac_name, pc_name, ward_number, wallet_address FROM eci_admin_data WHERE uid_hash = $1",
+      [uid_hash]
+    );
+
+    const eciData = eciResult.rows[0] || {};
+
+    res.status(200).json({ 
+      voterHash, 
+      hasVoted,
+      uidHash: uid_hash,
+      constituency: {
+        assembly: eciData.ac_name || 'Not assigned',
+        parliament: eciData.pc_name || 'Not assigned',
+        ward: eciData.ward_number || 'Not assigned'
+      },
+      walletAddress: eciData.wallet_address || 'Not assigned'
+    });
 
   } catch (err) {
     console.error("❌ Status check error:", err);
     res.status(500).json({ error: "Failed to check voter status", details: err.message });
+  } finally {
+    if (client) client.release();
   }
 });
 

@@ -12,11 +12,9 @@ app.use(cors({
   credentials: true
 }));
 
-// --- UPDATED USER ROUTES ---
-// We now require both of the separate registration files.
-// Express will correctly handle the '/start' and '/complete' routes from each file.
-app.use("/register", require("./routes/user/register_start"));
-app.use("/register", require("./routes/user/register_complete"));
+// --- USER ROUTES ---
+app.use("/register", require("./routes/user/register"));
+app.use("/digilocker", require("./routes/user/digilocker"));
 
 // --- Other routes remain the same ---
 app.use("/re-register", require("./routes/user/re-register"));
@@ -31,5 +29,6 @@ app.use("/admin/auth", require("./routes/admin/auth"));
 app.use("/admin/elections", require("./routes/admin/elections"));
 app.use("/admin/candidates", require("./routes/admin/candidates"));
 app.use("/admin/results", require("./routes/admin/results"));
+app.use("/admin/eci-data", require("./routes/admin/eciData"));
 
 module.exports = app;
