@@ -8,7 +8,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
  * It collects username, then redirects to external Digilocker verification,
  * and finally collects password and location details.
  */
-function RegisterStep1() {
+function Register() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -222,4 +222,4 @@ function RegisterStep1() {
   );
 }
 
-export default RegisterStep1;
+export default Register;
