@@ -87,22 +87,23 @@ router.post("/", async (req, res) => {
 
     // Insert into users table
     await client.query(
-      `INSERT INTO users (username, uid_hash, password, phone_number, full_name) VALUES ($1, $2, $3, $4, $5)`,
-      [username, uidHash, passwordHash, digilockerData.phone_number, digilockerData.full_name]
+      `INSERT INTO users (username, uid_hash, password) VALUES ($1, $2, $3)`,
+      [username, uidHash, passwordHash, ]
     );
 
     // Insert/Update ECI admin data with wallet information
     // Note: ECI admin should pre-populate constituency data, we only add wallet info
-    await client.query(
-      `INSERT INTO eci_admin_data (uid_hash, ac_name, pc_name, ward_number, enc_private_key, wallet_address) 
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (uid_hash) 
-       DO UPDATE SET 
-         enc_private_key = EXCLUDED.enc_private_key,
-         wallet_address = EXCLUDED.wallet_address,
-         updated_at = CURRENT_TIMESTAMP`,
-      [uidHash, 'Default AC', 'Default PC', 'Default Ward', encryptedPrivateKey, wallet.address]
-    );
+await client.query(
+  `INSERT INTO eci_admin_data (uid_hash, enc_private_key, wallet_address) 
+   VALUES ($1, $2, $3)
+   ON CONFLICT (uid_hash) 
+   DO UPDATE SET 
+     enc_private_key = EXCLUDED.enc_private_key,
+     wallet_address = EXCLUDED.wallet_address,
+     updated_at = CURRENT_TIMESTAMP`,
+  [uidHash, encryptedPrivateKey, wallet.address]
+);
+
 
     // Authorize voter on blockchain
     const provider = new JsonRpcProvider(process.env.RPC_URL);

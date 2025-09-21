@@ -88,7 +88,6 @@ CREATE TABLE public.elections (
     CONSTRAINT elections_type_check CHECK ((type = ANY (ARRAY['STATE_LEGISLATIVE'::text, 'PARLIAMENTARY'::text])))
 );
 
-
 --
 -- Name: candidates; Type: TABLE; Schema: public;
 --
@@ -106,7 +105,6 @@ CREATE SEQUENCE public.candidates_id_seq AS integer START WITH 1 INCREMENT BY 1 
 ALTER SEQUENCE public.candidates_id_seq OWNED BY public.candidates.id;
 ALTER TABLE ONLY public.candidates ALTER COLUMN id SET DEFAULT nextval('public.candidates_id_seq'::regclass);
 
-
 --
 -- Data for Name: digilocker_mock_data; Type: TABLE DATA; Schema: public;
 --
@@ -121,17 +119,26 @@ COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 9876543217	123456789019	1987-09-18	Kavya Reddy
 9876543218	123456789020	1993-04-12	Arjun Agarwal
 9876543219	123456789021	1989-06-25	Pooja Nair
-9876543220	123456789022	2010-03-15	Young User
-9876543221	123456789023	2008-08-10	Minor User
+9876543220	987654321022	2010-03-15	Young User
+9876543221	987654321023	2008-08-10	Minor User
 \.
 
 --
 -- Data for Name: eci_admin_data; Type: TABLE DATA; Schema: public;
 --
-COPY public.eci_admin_data (uid_hash, ac_name, pc_name, ward_number) FROM stdin;
-sample_hash_1	Sample Assembly Constituency 1	Sample Parliament Constituency 1	Ward 001
-sample_hash_2	Sample Assembly Constituency 2	Sample Parliament Constituency 2	Ward 002
-sample_hash_3	Sample Assembly Constituency 3	Sample Parliament Constituency 3	Ward 003
+COPY public.eci_admin_data (uid_hash, ac_name, pc_name, ward_number, enc_private_key, wallet_address) FROM stdin;
+6b3a55e0261b0304143f805a24944e0c4aa52de9b2d8e33a99f3f7b8f6c07a7e	Sample Assembly Constituency 1	Sample Parliament Constituency 1	Ward 001	\N	\N
+9bf31c7ff062936a96d3c8bd1f8f2ff3	Sample Assembly Constituency 2	Sample Parliament Constituency 2	Ward 002	\N	\N
+8c6976e5b5410415bde908bd4dee15dfb16fcd17	Sample Assembly Constituency 3	Sample Parliament Constituency 3	Ward 003	\N	\N
+03c7c0ace395d80182db07ae2c30f034	Sample Assembly Constituency 4	Sample Parliament Constituency 4	Ward 004	\N	\N
+a87ff679a2f3e71d9181a67b7542122c	Sample Assembly Constituency 5	Sample Parliament Constituency 5	Ward 005	\N	\N
+e4da3b7fbbce2345d7772b0674a318d5	Sample Assembly Constituency 6	Sample Parliament Constituency 6	Ward 006	\N	\N
+1679091c5a880faf6fb5e6087eb1b2dc	Sample Assembly Constituency 7	Sample Parliament Constituency 7	Ward 007	\N	\N
+8f14e45fceea167a5a36dedd4bea2543	Sample Assembly Constituency 8	Sample Parliament Constituency 8	Ward 008	\N	\N
+c9f0f895fb98ab9159f51fd0297e236d	Sample Assembly Constituency 9	Sample Parliament Constituency 9	Ward 009	\N	\N
+45c48cce2e2d7fbdea1afc51c7c6ad26	Sample Assembly Constituency 10	Sample Parliament Constituency 10	Ward 010	\N	\N
+d3d9446802a44259755d38e6d163e820	Sample Assembly Constituency 11	Sample Parliament Constituency 11	Ward 011	\N	\N
+6512bd43d9caa6e02c990b0a82652dca	Sample Assembly Constituency 12	Sample Parliament Constituency 12	Ward 012	\N	\N
 \.
 
 --
@@ -141,14 +148,12 @@ sample_hash_3	Sample Assembly Constituency 3	Sample Parliament Constituency 3	Wa
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_election_id_candidate_id_assembly_id_parliamenta_key UNIQUE (election_id, candidate_id, assembly_id, parliamentary_id);
 
-
 --
 -- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_pkey PRIMARY KEY (id);
-
 
 --
 -- Name: elections elections_pkey; Type: CONSTRAINT; Schema: public;
@@ -157,14 +162,12 @@ ALTER TABLE ONLY public.candidates
 ALTER TABLE ONLY public.elections
     ADD CONSTRAINT elections_pkey PRIMARY KEY (election_id);
 
-
 --
 -- Name: candidates candidates_election_id_fkey; Type: FK CONSTRAINT; Schema: public;
 --
 
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_election_id_fkey FOREIGN KEY (election_id) REFERENCES public.elections(election_id);
-
 
 --
 -- PostgreSQL database dump complete

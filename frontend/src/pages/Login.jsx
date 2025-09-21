@@ -27,7 +27,8 @@ function Login() {
 
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:5000/login", {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await axios.post(`${apiUrl}/login`, {
         username,
         password,
       });
@@ -97,7 +98,7 @@ function Login() {
 
         <p className="mt-2 text-center text-sm">
           Don’t have an account?{" "}
-          <Link to= "/register/step1" className="text-indigo-600 hover:underline">
+          <Link to= "/register" className="text-indigo-600 hover:underline">
             Register here
           </Link>
         </p>

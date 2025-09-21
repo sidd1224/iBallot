@@ -64,7 +64,7 @@ services:
     # Use npx to ensure the vite binary is found and --host to expose the server.
    
     environment:
-      - PORT=3000
+      - PORT_I=3000
       - VITE_API_KEY=${VITE_API_KEY}
       - VITE_AUTH_DOMAIN=${VITE_AUTH_DOMAIN}
       - VITE_PROJECT_ID=${VITE_PROJECT_ID}
