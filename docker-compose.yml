@@ -26,7 +26,7 @@ services:
     working_dir: /app
     restart: always
     ports:
-      - "${PORT_I}:5000"
+      - "${PORT}:5000"
     depends_on:
       db:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
       - POSTGRES_USER
       - POSTGRES_PASSWORD
       - POSTGRES_DB
-      - PORT_I
+      - PORT
       - DB_URL
       - SECRET_SALT
       - RPC_URL
@@ -64,7 +64,7 @@ services:
     # Use npx to ensure the vite binary is found and --host to expose the server.
    
     environment:
-      - PORT_I=3000
+      - PORT=3000
       - VITE_API_KEY=${VITE_API_KEY}
       - VITE_AUTH_DOMAIN=${VITE_AUTH_DOMAIN}
       - VITE_PROJECT_ID=${VITE_PROJECT_ID}

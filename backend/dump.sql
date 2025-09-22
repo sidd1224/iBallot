@@ -1,5 +1,5 @@
 --
--- PostgreSQL database dump
+-- PostgreSQL database dump (UPDATED with real uid_hash values)
 --
 
 SET statement_timeout = 0;
@@ -106,7 +106,7 @@ ALTER SEQUENCE public.candidates_id_seq OWNED BY public.candidates.id;
 ALTER TABLE ONLY public.candidates ALTER COLUMN id SET DEFAULT nextval('public.candidates_id_seq'::regclass);
 
 --
--- Data for Name: digilocker_mock_data; Type: TABLE DATA; Schema: public;
+-- Data for Name: digilocker_mock_data
 --
 COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 9876543210	123456789012	1990-05-15	Rajesh Kumar
@@ -124,47 +124,34 @@ COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 \.
 
 --
--- Data for Name: eci_admin_data; Type: TABLE DATA; Schema: public;
+-- Data for Name: eci_admin_data (UPDATED hashes)
 --
 COPY public.eci_admin_data (uid_hash, ac_name, pc_name, ward_number, enc_private_key, wallet_address) FROM stdin;
-6b3a55e0261b0304143f805a24944e0c4aa52de9b2d8e33a99f3f7b8f6c07a7e	Sample Assembly Constituency 1	Sample Parliament Constituency 1	Ward 001	\N	\N
-9bf31c7ff062936a96d3c8bd1f8f2ff3	Sample Assembly Constituency 2	Sample Parliament Constituency 2	Ward 002	\N	\N
-8c6976e5b5410415bde908bd4dee15dfb16fcd17	Sample Assembly Constituency 3	Sample Parliament Constituency 3	Ward 003	\N	\N
-03c7c0ace395d80182db07ae2c30f034	Sample Assembly Constituency 4	Sample Parliament Constituency 4	Ward 004	\N	\N
-a87ff679a2f3e71d9181a67b7542122c	Sample Assembly Constituency 5	Sample Parliament Constituency 5	Ward 005	\N	\N
-e4da3b7fbbce2345d7772b0674a318d5	Sample Assembly Constituency 6	Sample Parliament Constituency 6	Ward 006	\N	\N
-1679091c5a880faf6fb5e6087eb1b2dc	Sample Assembly Constituency 7	Sample Parliament Constituency 7	Ward 007	\N	\N
-8f14e45fceea167a5a36dedd4bea2543	Sample Assembly Constituency 8	Sample Parliament Constituency 8	Ward 008	\N	\N
-c9f0f895fb98ab9159f51fd0297e236d	Sample Assembly Constituency 9	Sample Parliament Constituency 9	Ward 009	\N	\N
-45c48cce2e2d7fbdea1afc51c7c6ad26	Sample Assembly Constituency 10	Sample Parliament Constituency 10	Ward 010	\N	\N
-d3d9446802a44259755d38e6d163e820	Sample Assembly Constituency 11	Sample Parliament Constituency 11	Ward 011	\N	\N
-6512bd43d9caa6e02c990b0a82652dca	Sample Assembly Constituency 12	Sample Parliament Constituency 12	Ward 012	\N	\N
+2a33349e7e606a8ad2e30e3c84521f9377450cf09083e162e0a9b1480ce0f972	AC 1	PC 1	Ward 001	\N	\N
+0e9feee8dd5d0d722ae507aecc216984c603cfb41bbc8f8b2313eef72409cd84	AC 2	PC 2	Ward 002	\N	\N
+d13dda0de247e23cfbb377605fcb7ddc5876feb0126eb336de4d893b173cf96f	AC 3	PC 3	Ward 003	\N	\N
+7848e7a32014f3c78205a1f0d6342148b950b117ab419534ca8d3ba03352f9a5	AC 4	PC 4	Ward 004	\N	\N
+d67e811253d74e16460584e20f31e40ba152243c1f91b14f2efde60a557eef8d	AC 5	PC 5	Ward 005	\N	\N
+a099026be37f1913a6c84ea3ecbf1bc3e95d68c70a4cada95e26e3a6acf268dc	AC 6	PC 6	Ward 006	\N	\N
+0722847621484e139b6f8692bb206c28a6858a6954c9289ce77f0a440aa076cc	AC 7	PC 7	Ward 007	\N	\N
+97c7126630eb7f1280928b7aece2319611b24ecb530501b100ce903ff65151de	AC 8	PC 8	Ward 008	\N	\N
+78a0fd421df008a753c8d7a9fdd8e18b6928d1ee512c2f146574d02485cf2de6	AC 9	PC 9	Ward 009	\N	\N
+259a9728b896a6836eacc1b709351299a553b2b97bbf7eafd0c1940a7264543e	AC 10	PC 10	Ward 010	\N	\N
+67a26cbcd3a82226eeea45b9bd67180a3aee2ca0ce02a58ac38abe641cd29a02	AC 11	PC 11	Ward 011	\N	\N
+77618b8bc873a72d6bf96a5c83a9a4a086e8bf7718f63c4b66afc3cbbc2b0a9f	AC 12	PC 12	Ward 012	\N	\N
 \.
 
 --
--- Name: candidates candidates_election_id_candidate_id_assembly_id_parliamenta_key; Type: CONSTRAINT; Schema: public;
+-- Constraints
 --
-
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_election_id_candidate_id_assembly_id_parliamenta_key UNIQUE (election_id, candidate_id, assembly_id, parliamentary_id);
-
---
--- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public;
---
 
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_pkey PRIMARY KEY (id);
 
---
--- Name: elections elections_pkey; Type: CONSTRAINT; Schema: public;
---
-
 ALTER TABLE ONLY public.elections
     ADD CONSTRAINT elections_pkey PRIMARY KEY (election_id);
-
---
--- Name: candidates candidates_election_id_fkey; Type: FK CONSTRAINT; Schema: public;
---
 
 ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_election_id_fkey FOREIGN KEY (election_id) REFERENCES public.elections(election_id);
