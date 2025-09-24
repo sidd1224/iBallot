@@ -1,5 +1,5 @@
 --
--- PostgreSQL database dump (UPDATED with real uid_hash values)
+-- PostgreSQL database dump (Option 1: Pre-populated eci_admin_data)
 --
 
 SET statement_timeout = 0;
@@ -17,7 +17,7 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: eci_admin_data; Type: TABLE; Schema: public;
+-- Table: eci_admin_data
 --
 CREATE TABLE public.eci_admin_data (
     id SERIAL PRIMARY KEY,
@@ -40,7 +40,7 @@ COMMENT ON COLUMN public.eci_admin_data.enc_private_key IS 'Encrypted private ke
 COMMENT ON COLUMN public.eci_admin_data.wallet_address IS 'Blockchain wallet address';
 
 --
--- Name: users; Type: TABLE; Schema: public;
+-- Table: users
 --
 CREATE TABLE public.users (
     id SERIAL PRIMARY KEY,
@@ -61,7 +61,7 @@ COMMENT ON COLUMN public.users.phone_number IS 'Phone number from Digilocker';
 COMMENT ON COLUMN public.users.full_name IS 'Full name from Digilocker';
 
 --
--- Name: digilocker_mock_data; Type: TABLE; Schema: public;
+-- Table: digilocker_mock_data
 --
 CREATE TABLE public.digilocker_mock_data (
     id SERIAL PRIMARY KEY,
@@ -75,7 +75,7 @@ CREATE TABLE public.digilocker_mock_data (
 COMMENT ON TABLE public.digilocker_mock_data IS 'Mock data table for Digilocker verification testing';
 
 --
--- Name: elections; Type: TABLE; Schema: public;
+-- Table: elections
 --
 CREATE TABLE public.elections (
     election_id character varying NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE public.elections (
 );
 
 --
--- Name: candidates; Type: TABLE; Schema: public;
+-- Table: candidates
 --
 CREATE TABLE public.candidates (
     id integer NOT NULL,
@@ -106,7 +106,7 @@ ALTER SEQUENCE public.candidates_id_seq OWNED BY public.candidates.id;
 ALTER TABLE ONLY public.candidates ALTER COLUMN id SET DEFAULT nextval('public.candidates_id_seq'::regclass);
 
 --
--- Data for Name: digilocker_mock_data
+-- Data for digilocker_mock_data
 --
 COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 9876543210	123456789012	1990-05-15	Rajesh Kumar
@@ -124,7 +124,7 @@ COPY public.digilocker_mock_data (phone_number, uid, dob, full_name) FROM stdin;
 \.
 
 --
--- Data for Name: eci_admin_data (UPDATED hashes)
+-- Data for eci_admin_data (real SHA-256 uid_hashes pre-populated)
 --
 COPY public.eci_admin_data (uid_hash, ac_name, pc_name, ward_number, enc_private_key, wallet_address) FROM stdin;
 2a33349e7e606a8ad2e30e3c84521f9377450cf09083e162e0a9b1480ce0f972	AC 1	PC 1	Ward 001	\N	\N
@@ -157,5 +157,5 @@ ALTER TABLE ONLY public.candidates
     ADD CONSTRAINT candidates_election_id_fkey FOREIGN KEY (election_id) REFERENCES public.elections(election_id);
 
 --
--- PostgreSQL database dump complete
+-- Dump complete
 --

@@ -4,6 +4,10 @@ FROM node:18-alpine
 # Set the working directory inside the container
 WORKDIR /app
 
+RUN apk add --no-cache bash curl postgresql-client && \
+    curl -L https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh -o /usr/bin/wait-for-it.sh && \
+    chmod +x /usr/bin/wait-for-it.sh
+
 # Add Doppler CLI for secret management, which is needed for 'doppler run --'
 
 
