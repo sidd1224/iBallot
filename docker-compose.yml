@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   db:
     container_name: iballot-db
@@ -9,7 +11,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./backend/dump.sql:/docker-entrypoint-initdb.d/dump.sql
+      - ./backend/init.sh:/usr/local/bin/init.sh
+      - ./backend/dump.sql:/usr/local/bin/dump.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -17,6 +20,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    command: ["sh", "/usr/local/bin/init.sh"]
 
   backend:
     container_name: iballot-backend
@@ -30,16 +34,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      firebase:
-        condition: service_started
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
-    command: >
-      sh -c "
-        /usr/bin/wait-for-it.sh iballot-db:5432 --timeout=30 --strict -- PGPASSWORD=${POSTGRES_PASSWORD} /usr/bin/psql -h iballot-db -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /docker-entrypoint-initdb.d/dump.sql && \
-        npm run server
-      "
+    command: npm run server
     environment:
       - CONTRACT_ADDRESS
       - PRIVATE_KEY
@@ -65,8 +63,6 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
-    # Use npx to ensure the vite binary is found and --host to expose the server.
-   
     environment:
       - PORT=3000
       - VITE_API_KEY=${VITE_API_KEY}
@@ -75,22 +71,6 @@ services:
       - VITE_STORAGE_BUCKET=${VITE_STORAGE_BUCKET}
       - VITE_MESSAGING_SENDER_ID=${VITE_MESSAGING_SENDER_ID}
       - VITE_APP_ID=${VITE_APP_ID}
-      - VITE_API_URL=http://localhost:5000
-
-  firebase:
-    image: node:18
-    container_name: firebase-emulator
-    working_dir: /app/backend
-    volumes:
-      - ./backend:/app/backend
-    command: >
-      sh -c "
-        npm install -g firebase-tools &&
-        firebase emulators:start --only auth --project demo-project
-      "
-    ports:
-      - "9099:9099"
-      - "4000:4000"
 
   test:
     container_name: iballot-test
@@ -101,8 +81,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      firebase:
-        condition: service_started
     command: npx jest
     environment:
       - NODE_ENV=test
@@ -124,9 +102,20 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+  db-seed:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/dump.sql:/dump.sql
+    entrypoint: >
+      sh -c "
+        until pg_isready -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB}; do sleep 1; done
+        psql -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f /dump.sql
+      "
 
 volumes:
   db_data:
   backend_node_modules:
   frontend_node_modules:
-
