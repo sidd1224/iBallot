@@ -31,7 +31,7 @@ router.post("/", async (req, res) => {
 
     // Step 1: Find the user by their username in the new users table
     const userResult = await client.query(
-      "SELECT id, username, uid_hash, password, phone_number, full_name FROM users WHERE username = $1", 
+      "SELECT id, username, uid_hash, password FROM users WHERE username = $1", 
       [username]
     );
     
@@ -84,8 +84,6 @@ router.post("/", async (req, res) => {
       hasVoted: hasVoted,
       user: {
         username: user.username,
-        fullName: user.full_name,
-        phoneNumber: user.phone_number
       },
       constituency: {
         assembly: eciData.ac_name,
