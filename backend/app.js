@@ -15,16 +15,16 @@ app.use(cors({
 // --- USER ROUTES ---
 app.use("/register", require("./routes/user/register"));
 app.use("/digilocker", require("./routes/user/digilocker"));
-
-// --- Other routes remain the same ---
-
 app.use("/login", require("./routes/user/login"));
 app.use("/status", require("./routes/user/status"));
 app.use("/vote", require("./routes/user/vote"));
+
+// --- CORRECTED: Use the correct path for dashboard and add candidateList ---
+app.use("/dashboard", require("./routes/user/dashboard")); 
 app.use("/candidates", require("./routes/user/candidateList"));
 
 
-// Admin Routes
+// --- Admin Routes ---
 app.use("/admin/auth", require("./routes/admin/auth"));
 app.use("/admin/elections", require("./routes/admin/elections"));
 app.use("/admin/candidates", require("./routes/admin/candidates"));

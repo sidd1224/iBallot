@@ -1,28 +1,21 @@
 const express = require("express");
 const router = express.Router();
-const { JsonRpcProvider, Contract } = require("ethers");
-
 const pool = require("../../database/db");
+
+// --- CORRECT: Import the already configured contract instance ---
+const votingContract = require("../../blockchain/contract");
 
 require("dotenv").config();
 
-// Smart contract setup
-const provider = new JsonRpcProvider(process.env.RPC_URL);
-const contractAddress = process.env.CONTRACT_ADDRESS; // Make sure this is in your .env file
-
-const abi = ["function hasVoted(bytes32) view returns (bool)"];
-const votingContract = new Contract(contractAddress, abi, provider);
-
 /**
  * @route   POST /status
- * @desc    Checks if a voter has already cast their vote using uid_hash.
+ * @desc    Checks if a voter has already cast their vote for the current active election.
  * @access  Public (requires username)
  */
 router.post("/", async (req, res) => {
   let client;
   
   try {
-    // Step 1: Get username from the request body.
     const { username } = req.body;
 
     if (!username) {
@@ -31,7 +24,7 @@ router.post("/", async (req, res) => {
 
     client = await pool.connect();
 
-    // Step 2: Fetch the user's uid_hash using their username from new users table.
+    // Step 1: Fetch the user's uid_hash
     const userResult = await client.query(
       "SELECT uid_hash FROM users WHERE username = $1",
       [username]
@@ -42,14 +35,32 @@ router.post("/", async (req, res) => {
     }
 
     const { uid_hash } = userResult.rows[0];
-
-    // Step 3: Generate the voter hash from the uid_hash.
     const voterHash = "0x" + uid_hash;
+    
+    // Step 2: Check for an active election in the database
+    const electionResult = await client.query(
+        `SELECT election_id FROM elections 
+         WHERE start_time <= NOW() AND end_time >= NOW() 
+         ORDER BY start_time DESC LIMIT 1`
+    );
 
-    // Step 4: Check the smart contract to see if the voter has already voted.
-    const hasVoted = await votingContract.hasVoted(voterHash);
+    let hasVoted = false;
+    let electionId = null;
 
-    // Step 5: Get additional user info from ECI admin data
+    // Step 3: If an election is active, THEN check the blockchain
+    if (electionResult.rows.length > 0) {
+        electionId = electionResult.rows[0].election_id;
+        try {
+            // Call the contract with both required parameters
+            hasVoted = await votingContract.hasVoted(electionId, voterHash);
+        } catch (err) {
+            console.warn("⚠️ Could not check voting status from blockchain:", err.message);
+        }
+    } else {
+        console.log("✅ No active election found for status check. Reporting 'hasVoted' as false.");
+    }
+
+    // Step 4: Get additional user info from ECI admin data
     const eciResult = await client.query(
       "SELECT ac_name, pc_name, ward_number, wallet_address FROM eci_admin_data WHERE uid_hash = $1",
       [uid_hash]
@@ -60,6 +71,7 @@ router.post("/", async (req, res) => {
     res.status(200).json({ 
       voterHash, 
       hasVoted,
+      electionId: electionId, // Include the active election ID in the response
       uidHash: uid_hash,
       constituency: {
         assembly: eciData.ac_name || 'Not assigned',

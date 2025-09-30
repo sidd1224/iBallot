@@ -7,6 +7,7 @@ const { Wallet, JsonRpcProvider } = require("ethers");
 const pool = require("../../database/db");
 const contract = require("../../blockchain/contract");
 const { encrypt } = require("../../utils/aesUtils");
+const { retryBlockchainCall } = require("../../utils/blockchainUtils"); // Import the helper
 
 require("dotenv").config();
 
@@ -92,28 +93,28 @@ router.post("/", async (req, res) => {
     );
 
     // Insert/Update ECI admin data with wallet information
-    // Note: ECI admin should pre-populate constituency data, we only add wallet info
-const result = await client.query(
-  `UPDATE eci_admin_data
-   SET enc_private_key = $1,
-       wallet_address = $2,
-       updated_at = CURRENT_TIMESTAMP
-   WHERE uid_hash = $3
-   RETURNING *`,
-  [encryptedPrivateKey, wallet.address, uidHash]
-);
+    const result = await client.query(
+      `UPDATE eci_admin_data
+       SET enc_private_key = $1,
+           wallet_address = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE uid_hash = $3
+       RETURNING *`,
+      [encryptedPrivateKey, wallet.address, uidHash]
+    );
 
-if (result.rowCount === 0) {
-  await client.query("ROLLBACK");
-  return res.status(400).json({ error: "ECI admin data missing for this UID" });
-}
-
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "ECI admin data missing for this UID" });
+    }
 
     // Authorize voter on blockchain
     const provider = new JsonRpcProvider(process.env.RPC_URL);
     const relayer = new Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
     const signer = contract.connect(relayer);
-    const tx = await signer.authorizeVoter(voterHash, wallet.address);
+
+    // --- UPDATED: Wrapped the blockchain call in the retry helper ---
+    const tx = await retryBlockchainCall(() => signer.authorizeVoter(voterHash, wallet.address));
     await tx.wait();
 
     await client.query("COMMIT");
@@ -139,5 +140,5 @@ if (result.rowCount === 0) {
   }
 });
 
-
 module.exports = router;
+

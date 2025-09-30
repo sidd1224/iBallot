@@ -2,18 +2,14 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Import the page components
-import Login from './pages/Login';
-import Register from './pages/Register';
-import DigilockerVerify from './pages/DigilockerVerify';
+import Login from './pages/user/Login';
+import Register from './pages/user/Register';
+import DigilockerVerify from './pages/user/DigilockerVerify';
 import { VerificationProvider } from './context/VerificationContext.jsx'; // <-- import context
-
-// Placeholder for the Dashboard component
-const Dashboard = () => (
-  <div className="p-8">
-    <h1 className="text-2xl font-bold">Dashboard</h1>
-    <p>You are logged in.</p>
-  </div>
-);
+import Dashboard from './pages/user/Dashboard';
+import CandidateList from './pages/user/CandidateList';
+import AdminDashboard from './pages/admin/adminDashboard';
+import AdminLogin from './pages/admin/adminLogin';
 
 function App() {
   return (
@@ -24,6 +20,14 @@ function App() {
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
+
+          <Route path="/admin" element={<Navigate to="/admin/login" />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+          {/* --- Voting Flow --- */}
+          {/* 2. Add the new route with its parameters */}
+          <Route path="/candidates/:electionId/:assemblyId" element={<CandidateList />} />
 
           {/* --- Registration Flow Routes --- */}
           <Route path="/register" element={<Register />} />
