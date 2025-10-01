@@ -33,7 +33,7 @@ CREATE TABLE public.candidates (
     candidate_id integer NOT NULL,
     candidate_name text NOT NULL,
     constituency_id integer NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -55,7 +55,7 @@ CREATE TABLE public.digilocker_mock_data (
     uid character varying(20) NOT NULL,
     dob date NOT NULL,
     full_name character varying(100) NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE SEQUENCE public.digilocker_mock_data_id_seq AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
@@ -73,8 +73,8 @@ CREATE TABLE public.eci_admin_data (
     ward_number character varying(50),
     enc_private_key bytea,
     wallet_address text,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     ac_id integer,
     pc_id integer
 );
@@ -91,10 +91,10 @@ CREATE TABLE public.elections (
     election_id integer NOT NULL,
     name text NOT NULL,
     type text NOT NULL,
-    start_time timestamp without time zone NOT NULL,
-    end_time timestamp without time zone NOT NULL,
+    start_time timestamp with time zone NOT NULL, -- Use TIMESTAMPTZ
+    end_time timestamp with time zone NOT NULL,   -- Use TIMESTAMPTZ
     enabled_constituencies integer[],
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT elections_type_check CHECK ((type = ANY (ARRAY['STATE_LEGISLATIVE'::text, 'PARLIAMENTARY'::text])))
 );
 
@@ -108,8 +108,8 @@ CREATE TABLE public.users (
     username character varying(100) NOT NULL,
     uid_hash character varying(64) NOT NULL,
     password character varying(100) NOT NULL,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    last_login timestamp without time zone
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    last_login timestamp with time zone
 );
 
 
@@ -125,33 +125,33 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 -- Data for Name: candidates; Type: TABLE DATA; Schema: public; Owner: -
 --
 COPY public.candidates (id, election_id, candidate_id, candidate_name, constituency_id, created_at) FROM stdin;
-1	101	0	Aarav Sharma	1	2025-09-29 12:00:00
-2	101	1	Priya Patel	1	2025-09-29 12:00:00
+1	101	0	Aarav Sharma	1	'2025-09-29 12:00:00+00'
+2	101	1	Priya Patel	1	'2025-09-29 12:00:00+00'
 \.
 
 --
 -- Data for Name: digilocker_mock_data; Type: TABLE DATA; Schema: public; Owner: -
 --
 COPY public.digilocker_mock_data (id, phone_number, uid, dob, full_name, created_at) FROM stdin;
-1	9876543210	123456789012	1990-05-15	Rajesh Kumar	2025-09-24 11:29:17.358453
-2	9876543211	123456789013	1985-12-03	Priya Sharma	2025-09-24 11:29:17.358453
-3	9876543212	123456789014	1992-08-22	Amit Patel	2025-09-24 11:29:17.358453
+1	9876543210	123456789012	1990-05-15	Rajesh Kumar	'2025-09-24 11:29:17.358453+00'
+2	9876543211	123456789013	1985-12-03	Priya Sharma	'2025-09-24 11:29:17.358453+00'
+3	9876543212	123456789014	1992-08-22	Amit Patel	'2025-09-24 11:29:17.358453+00'
 \.
 
 --
 -- Data for Name: eci_admin_data; Type: TABLE DATA; Schema: public; Owner: -
 --
 COPY public.eci_admin_data (id, uid_hash, ac_name, pc_name, ward_number, enc_private_key, wallet_address, created_at, updated_at, ac_id, pc_id) FROM stdin;
-1	2a33349e7e606a8ad2e30e3c84521f9377450cf09083e162e0a9b1480ce0f972	AC 1	PC 1	Ward 001	\N	\N	2025-09-24 11:29:17.367329	2025-09-24 11:29:17.367329	1	1
-2	0e9feee8dd5d0d722ae507aecc216984c603cfb41bbc8f8b2313eef72409cd84	AC 2	PC 2	Ward 002	\N	\N	2025-09-24 11:29:17.367329	2025-09-24 11:29:17.367329	2	2
-3	d13dda0de247e23cfbb377605fcb7ddc5876feb0126eb336de4d893b173cf96f	AC 3	PC 3	Ward 003	\N	\N	2025-09-24 11:29:17.367329	2025-09-24 11:29:17.367329	3	3
+1	2a33349e7e606a8ad2e30e3c84521f9377450cf09083e162e0a9b1480ce0f972	AC 1	PC 1	Ward 001	\N	\N	'2025-09-24 11:29:17.367329+00'	'2025-09-24 11:29:17.367329+00'	1	1
+2	0e9feee8dd5d0d722ae507aecc216984c603cfb41bbc8f8b2313eef72409cd84	AC 2	PC 2	Ward 002	\N	\N	'2025-09-24 11:29:17.367329+00'	'2025-09-24 11:29:17.367329+00'	2	2
+3	d13dda0de247e23cfbb377605fcb7ddc5876feb0126eb336de4d893b173cf96f	AC 3	PC 3	Ward 003	\N	\N	'2025-09-24 11:29:17.367329+00'	'2025-09-24 11:29:17.367329+00'	3	3
 \.
 
 --
 -- Data for Name: elections; Type: TABLE DATA; Schema: public; Owner: -
 --
 COPY public.elections (election_id, name, type, start_time, end_time, enabled_constituencies, created_at) FROM stdin;
-101	Test-State-Election -025	STATE_LEGISLATIVE	2025-09-01 00:00:00	2025-10-31 23:59:59	{1}	2025-09-29 12:00:00
+101	Test-State-Election -2025	STATE_LEGISLATIVE	'2025-09-01 00:00:00+00'	'2025-10-31 23:59:59+00'	{1}	'2025-09-29 12:00:00+00'
 \.
 
 --
