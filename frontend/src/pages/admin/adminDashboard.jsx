@@ -14,40 +14,100 @@ const StatCard = ({ title, value, icon }) => (
     </div>
 );
 
-const AdminLayout = ({ children, setCurrentPage, handleLogout }) => (
-    <div className="min-h-screen bg-gray-100 flex font-sans">
-        <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col shadow-lg">
-            <h1 className="text-2xl font-bold mb-8 border-b border-gray-700 pb-4">iBallot Admin</h1>
-            <nav className="flex-grow">
-                <ul>
-                    <li className="mb-2"><button onClick={() => setCurrentPage('home')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Dashboard</button></li>
-                    <li className="mb-2"><button onClick={() => setCurrentPage('elections')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Manage Elections</button></li>
-                    <li className="mb-2"><button onClick={() => setCurrentPage('candidates')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Upload Candidates</button></li>
-                    <li className="mb-2"><button onClick={() => setCurrentPage('results')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">View Results</button></li>
-                </ul>
-            </nav>
-            <div>
-                <button onClick={handleLogout} className="w-full text-left bg-red-600 hover:bg-red-700 p-3 font-bold rounded transition-colors">Logout</button>
-            </div>
-        </aside>
-        <main className="flex-1 p-8 overflow-y-auto">
-            {children}
-        </main>
-    </div>
-);
+const AdminLayout = ({ children, setCurrentPage, handleLogout }) => {
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+    const handleNavClick = (page) => {
+        setCurrentPage(page);
+        setSidebarOpen(false); // Close sidebar on mobile after navigation
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-100 font-sans">
+            {/* Mobile Menu Button */}
+            <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden fixed top-4 left-4 z-40 p-2 bg-gray-800 text-white rounded-md"
+                aria-label="Open menu"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                </svg>
+            </button>
+
+            {/* Sidebar */}
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white p-4 flex flex-col shadow-lg transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-2xl font-bold">iBallot Admin</h1>
+                    <button
+                        onClick={() => setSidebarOpen(false)}
+                        className="md:hidden p-1 text-white"
+                        aria-label="Close menu"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <nav className="flex-grow">
+                    <ul>
+                        <li className="mb-2"><button onClick={() => handleNavClick('home')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Dashboard</button></li>
+                        <li className="mb-2"><button onClick={() => handleNavClick('elections')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Manage Elections</button></li>
+                        <li className="mb-2"><button onClick={() => handleNavClick('candidates')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">Upload Candidates</button></li>
+                        <li className="mb-2"><button onClick={() => handleNavClick('results')} className="w-full text-left font-semibold hover:bg-gray-700 p-3 rounded transition-colors">View Results</button></li>
+                    </ul>
+                </nav>
+                <div>
+                    <button onClick={handleLogout} className="w-full text-left bg-red-600 hover:bg-red-700 p-3 font-bold rounded transition-colors">Logout</button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 p-4 sm:p-8 md:ml-64">
+                {children}
+            </main>
+
+            {/* Overlay for mobile */}
+            {isSidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black opacity-50 z-40 md:hidden"></div>}
+        </div>
+    );
+};
 
 
 // --- Page-Specific Components ---
 
 const HomePage = ({ adminToken }) => {
-    // This page can display summary statistics from your eciData route
+    const [stats, setStats] = useState({ totalVoters: 0, activeElections: 0, totalCandidates: 0 });
+    const [loading, setLoading] = useState(true);
+    const apiUrl = import.meta.env.VITE_API_URL;
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const response = await axios.get(`${apiUrl}/admin/dashboard/summary`, {
+                    headers: { Authorization: adminToken }
+                });
+                if (response.data.success) {
+                    setStats(response.data.stats);
+                }
+            } catch (error) {
+                console.error("Failed to fetch dashboard stats:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        if(adminToken) {
+            fetchStats();
+        }
+    }, [adminToken, apiUrl]);
+
     return (
         <div>
             <h2 className="text-3xl font-bold mb-6 text-gray-800">Dashboard Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard title="Total Voters" value="-" icon="👥" />
-                <StatCard title="Active Elections" value="-" icon="🗳️" />
-                <StatCard title="Candidates Registered" value="-" icon="🧑‍💼" />
+                <StatCard title="Total Voters" value={loading ? '...' : stats.totalVoters} icon="👥" />
+                <StatCard title="Active Elections" value={loading ? '...' : stats.activeElections} icon="🗳️" />
+                <StatCard title="Candidates Registered" value={loading ? '...' : stats.totalCandidates} icon="🧑‍💼" />
             </div>
              <div className="mt-10 bg-white p-6 rounded-lg shadow-md">
                 <h3 className="font-bold text-xl mb-4">Welcome, Admin!</h3>
@@ -92,7 +152,7 @@ const ElectionsPage = ({ adminToken }) => {
     if (adminToken) {
         fetchElections();
     }
-  }, [adminToken]);
+  }, [adminToken, apiUrl]);
 
   const handleInputChange = (e) => {
       const { name, value } = e.target;
@@ -159,14 +219,14 @@ const ElectionsPage = ({ adminToken }) => {
         {loading ? <p>Loading elections...</p> : (
           <div className="divide-y divide-gray-200">
             {elections.length > 0 ? elections.map(e => (
-              <div key={e.election_id} className="p-3 flex justify-between items-center">
-                  <div>
+              <div key={e.election_id} className="p-3 flex flex-col md:flex-row justify-between md:items-center">
+                  <div className="mb-2 md:mb-0">
                       <p className="font-semibold">{e.name}</p>
                       <p className="text-sm text-gray-500">ID: {e.election_id} | Type: {e.type}</p>
                   </div>
-                  <div className="text-sm text-right">
-                      <p><strong>Starts:</strong> {new Date(e.start_time).toLocaleDateString()}</p>
-                      <p><strong>Ends:</strong> {new Date(e.end_time).toLocaleDateString()}</p>
+                  <div className="text-sm text-left md:text-right">
+                      <p><strong>Starts:</strong> {new Date(e.start_time).toLocaleString()}</p>
+                      <p><strong>Ends:</strong> {new Date(e.end_time).toLocaleString()}</p>
                   </div>
               </div>
             )) : <p className="text-gray-500">No elections found.</p>}
@@ -247,6 +307,8 @@ const CandidatesPage = ({ adminToken }) => {
 };
 
 const ResultsPage = ({ adminToken }) => {
+    // This component would be expanded to allow an admin to select an election
+    // and then view the results by constituency.
     return (
         <div>
             <h2 className="text-3xl font-bold mb-6">View Election Results</h2>
@@ -259,7 +321,6 @@ const ResultsPage = ({ adminToken }) => {
 
 
 // --- Main Admin Dashboard Component ---
-
 const AdminDashboard = () => {
     const [currentPage, setCurrentPage] = useState('home');
     const navigate = useNavigate();

@@ -26,6 +26,7 @@ app.use("/candidates", require("./routes/user/candidateList"));
 
 // --- Admin Routes ---
 app.use("/admin/auth", require("./routes/admin/auth"));
+app.use("/admin/dashboard", require("./routes/admin/data-summary"));
 app.use("/admin/elections", require("./routes/admin/elections"));
 app.use("/admin/candidates", require("./routes/admin/candidates"));
 app.use("/admin/results", require("./routes/admin/results"));

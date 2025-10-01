@@ -10,6 +10,14 @@ const CandidateList = () => {
   const [error, setError] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
+  // State for the voting process
+  const [isVoting, setIsVoting] = useState(false);
+  const [password, setPassword] = useState('');
+  const [voteError, setVoteError] = useState('');
+  
+  // Get username from session for the API call
+  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
+
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
@@ -25,19 +33,40 @@ const CandidateList = () => {
     };
 
     fetchCandidates();
-  }, [electionId, assemblyId]); // Re-fetch if these params change
+  }, [electionId, assemblyId]);
 
-  const handleVote = () => {
+  const handleVoteSubmit = async (e) => {
+    e.preventDefault();
     if (selectedCandidate === null) {
-      alert("Please select a candidate before submitting your vote.");
+      setVoteError("Please select a candidate before submitting.");
       return;
     }
-    const candidateName = candidates.find(c => c.id === selectedCandidate)?.name;
-    alert(`This will cast your vote for ${candidateName} (ID: ${selectedCandidate})`);
-    
-    // In a real implementation, you would call the POST /vote endpoint here
-    // and then navigate to a confirmation page.
-    // e.g., navigate('/vote/success');
+    if (!password) {
+      setVoteError("Please enter your password to confirm your vote.");
+      return;
+    }
+
+    setVoteError('');
+    setIsVoting(true);
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await axios.post(`${apiUrl}/vote`, {
+        username: currentUser?.user?.username,
+        password: password,
+        electionId: parseInt(electionId),
+        candidateId: selectedCandidate,
+      });
+
+      alert(`Vote cast successfully!\nTransaction Hash: ${response.data.txHash}`);
+      navigate('/dashboard'); // Navigate back to dashboard on success
+
+    } catch (err) {
+      setVoteError(err.response?.data?.error || 'An unexpected error occurred while casting your vote.');
+      console.error(err);
+    } finally {
+      setIsVoting(false);
+    }
   };
 
   if (loading) return <div className="p-8 text-center text-lg">Loading Candidates...</div>;
@@ -76,24 +105,38 @@ const CandidateList = () => {
           )}
         </div>
         
-        <div className="mt-8 flex flex-col gap-4">
-          <button
-            onClick={handleVote}
-            disabled={selectedCandidate === null || candidates.length === 0}
-            className="w-full btn bg-green-600 text-white py-3 text-base font-semibold rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            Submit Final Vote
-          </button>
-          <button
+        <form onSubmit={handleVoteSubmit} className="mt-8 flex flex-col gap-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm with Password</label>
+                <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password to confirm vote"
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    required
+                    disabled={selectedCandidate === null}
+                />
+            </div>
+            {voteError && <p className="text-red-500 text-sm text-center -my-2">{voteError}</p>}
+            <button
+                type="submit" // The button now correctly triggers the form's onSubmit
+                disabled={selectedCandidate === null || isVoting || candidates.length === 0}
+                className="w-full btn bg-green-600 text-white py-3 text-base font-semibold rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+                {isVoting ? 'Submitting...' : 'Submit Final Vote'}
+            </button>
+        </form>
+        <button
             onClick={() => navigate('/dashboard')}
-            className="w-full text-center text-indigo-600 hover:underline"
-          >
-            Return to Dashboard
-          </button>
-        </div>
+            className="w-full text-center text-indigo-600 hover:underline mt-4"
+        >
+            Cancel and Return to Dashboard
+        </button>
       </div>
     </div>
   );
 };
 
 export default CandidateList;
+

@@ -7,14 +7,10 @@ const { JsonRpcProvider, Wallet, ethers } = require("ethers");
 const contract = require("../../blockchain/contract");
 const pool = require("../../database/db");
 const { decrypt } = require("../../utils/aesUtils");
+const { retryBlockchainCall } = require("../../utils/blockchainUtils");
 
 require("dotenv").config();
 
-/**
- * @route   POST /vote
- * @desc    Casts a vote on behalf of a user via a meta-transaction.
- * @access  Private (requires username/password)
- */
 router.post("/", async (req, res) => {
   let client;
   try {
@@ -32,14 +28,12 @@ router.post("/", async (req, res) => {
       [username]
     );
     if (userResult.rows.length === 0) {
-      client.release();
       return res.status(401).json({ error: "Invalid credentials." });
     }
     const user = userResult.rows[0];
 
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
-      client.release();
       return res.status(401).json({ error: "Invalid credentials." });
     }
 
@@ -49,7 +43,6 @@ router.post("/", async (req, res) => {
       [user.uid_hash]
     );
     if (eciResult.rows.length === 0) {
-      client.release();
       return res.status(404).json({ error: "User data not found in ECI records." });
     }
     const eciData = eciResult.rows[0];
@@ -60,7 +53,6 @@ router.post("/", async (req, res) => {
       [electionId]
     );
     if (electionTypeResult.rows.length === 0) {
-      client.release();
       return res.status(404).json({ error: "Election not found." });
     }
     const electionType = electionTypeResult.rows[0].type;
@@ -73,7 +65,6 @@ router.post("/", async (req, res) => {
     }
 
     if (!constituencyId) {
-        client.release();
         return res.status(400).json({ error: "User is not eligible for this type of election." });
     }
 
@@ -81,18 +72,23 @@ router.post("/", async (req, res) => {
 
     // Decrypt the user's private key to sign the transaction
     const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
-    const privateKey = decrypt(eciData.enc_private_key, secretKey);
+    
+    // --- CORRECTED LOGIC ---
+    // The decrypt function returns a Buffer, which must be converted to a string.
+    const decryptedKeyBuffer = decrypt(eciData.enc_private_key, secretKey);
+    const privateKey = decryptedKeyBuffer.toString('utf8');
     const voterWallet = new Wallet(privateKey);
+    // --- END CORRECTION ---
 
     // Set up the relayer wallet that will pay for the gas
     const provider = new JsonRpcProvider(process.env.RPC_URL);
     const relayer = new Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
     const signer = contract.connect(relayer);
 
-    const nonce = await signer.getNonce(electionId, voterHash);
+    const nonce = await retryBlockchainCall(() => signer.getNonce(electionId, voterHash));
     const deadline = Math.floor(Date.now() / 1000) + 600; // Signature is valid for 10 minutes
 
-    // The message hash must match the one in the smart contract EXACTLY, using the numeric constituencyId
+    // The message hash must match the one in the smart contract EXACTLY
     const messageHash = ethers.solidityPackedKeccak256(
       ["uint256", "bytes32", "uint256", "uint256", "uint256", "uint256"],
       [electionId, voterHash, candidateId, constituencyId, nonce, deadline]
@@ -100,16 +96,16 @@ router.post("/", async (req, res) => {
 
     const signature = await voterWallet.signMessage(ethers.getBytes(messageHash));
 
-    // The relayer calls the meta-transaction function with all the required data
-    const tx = await signer.castVoteMeta(
+    // The relayer calls the meta-transaction function
+    const tx = await retryBlockchainCall(() => signer.castVoteMeta(
       electionId,
       voterHash,
       candidateId,
-      constituencyId, // Pass the correct numeric constituencyId to the contract
+      constituencyId,
       deadline,
       signature
-    );
-    await tx.wait();
+    ));
+    await retryBlockchainCall(() => tx.wait());
 
     res.status(200).json({
       success: true,

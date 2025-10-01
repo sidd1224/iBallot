@@ -1,51 +1,60 @@
-// backend/routes/admin/elections.js
-
 const express = require("express");
 const router = express.Router();
 const adminAuth = require("../../middleware/adminAuth");
 const pool = require("../../database/db");
+const contract = require("../../blockchain/contract"); // 1. Import the contract
+const { retryBlockchainCall } = require("../../utils/blockchainUtils"); // 2. Import the retry helper
 
-// ✅ Create an election
+// Create an election
 router.post("/", adminAuth, async (req, res) => {
-  const { electionId, name, type, startTime, endTime, statesEnabled } = req.body;
+  const { electionId, name, type, startTime, endTime, enabled_constituencies } = req.body;
 
   if (!electionId || !name || !type || !startTime || !endTime) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  if (!["ac", "pc"].includes(type)) {
-    return res.status(400).json({ error: "Invalid election type. Must be 'ac' or 'pc'" });
-  }
+  // Add validation for other fields as needed...
 
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-
-  const diffMs = end - start;
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  if (diffDays < 1) {
-    return res.status(400).json({ error: "End time must be at least 1 day after start time" });
-  }
-
+  let client;
   try {
-    const states = type === "ac"
-      ? Array.isArray(statesEnabled) ? statesEnabled : []
-      : []; // for 'pc', no state filtering (all states)
+    client = await pool.connect();
+    await client.query("BEGIN"); // Start a database transaction
 
-    await pool.query(
-      `INSERT INTO elections (election_id, name, type, start_time, end_time, states_enabled)
+    // Step 1: Insert the election into the PostgreSQL database
+    await client.query(
+      `INSERT INTO elections (election_id, name, type, start_time, end_time, enabled_constituencies)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [electionId, name, type, startTime, endTime, states]
+      [electionId, name, type, startTime, endTime, enabled_constituencies || []]
     );
 
-    res.status(201).json({ message: "✅ Election created successfully" });
+    // Step 2: Call the startElection function on the smart contract.
+    // The contract expects Unix timestamps (in seconds), not date strings.
+    const startTimestamp = Math.floor(new Date(startTime).getTime() / 1000);
+    const endTimestamp = Math.floor(new Date(endTime).getTime() / 1000);
+    
+    console.log(`Starting election on-chain with start: ${startTimestamp}, end: ${endTimestamp}`);
+
+    // Use the retry helper for network resilience
+    const tx = await retryBlockchainCall(() => contract.startElection(startTimestamp, endTimestamp));
+    await retryBlockchainCall(() => tx.wait());
+
+    console.log(`On-chain election started, tx: ${tx.hash}`);
+
+    // If both operations succeed, commit the database transaction
+    await client.query("COMMIT");
+
+    res.status(201).json({ message: "✅ Election created successfully on database and blockchain" });
+
   } catch (err) {
+    if (client) await client.query("ROLLBACK"); // If any step fails, roll back the database change
     console.error("❌ Error creating election:", err);
-    res.status(500).json({ error: "Failed to create election" });
+    res.status(500).json({ error: "Failed to create election", details: err.message });
+  } finally {
+    if (client) client.release();
   }
 });
 
-// ✅ List all elections
+// List all elections (no changes needed here)
 router.get("/", adminAuth, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM elections ORDER BY start_time DESC");

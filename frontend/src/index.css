@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global theme */
 :root {
   color-scheme: light;
+  font-size: 16px; /* base size for mobile */
+}
+
+@media (min-width: 768px) {
+  :root {
+    font-size: 18px; /* scale up on tablets/desktops */
+  }
 }
 
 html,
@@ -16,23 +24,48 @@ body {
   @apply bg-gray-100 text-slate-900 antialiased;
 }
 
+/* -------------------------------
+   ✅ Reusable Component Styles
+--------------------------------- */
 @layer components {
+  /* Buttons */
   .btn {
-    @apply w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors disabled:cursor-not-allowed;
+    @apply flex justify-center py-2.5 px-4 border border-transparent 
+           rounded-md shadow-sm text-sm font-medium text-white 
+           transition-colors disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400;
+    @apply bg-brand hover:bg-brand-dark focus:outline-none 
+           focus:ring-2 focus:ring-offset-2 focus:ring-brand 
+           disabled:bg-brand-light;
   }
+
+  /* Inputs */
   .input {
-    @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
+    @apply mt-1 block w-full px-3 py-2 bg-white border border-gray-300 
+           rounded-md shadow-sm placeholder-gray-400 
+           focus:outline-none focus:ring-brand focus:border-brand 
+           sm:text-sm;
   }
+
+  /* Cards */
   .card {
-    @apply bg-white/95 backdrop-blur-sm shadow-2xl rounded-2xl p-8 space-y-6;
+    @apply bg-white/95 backdrop-blur-sm shadow-2xl rounded-2xl 
+           p-6 space-y-4 sm:p-8 sm:space-y-6 lg:p-10;
   }
+
+  /* Links */
   .link {
-    @apply font-medium text-indigo-600 hover:text-indigo-500 hover:underline;
+    @apply font-medium text-brand hover:text-brand-dark hover:underline;
   }
+
+  /* Labels */
   .label {
     @apply block text-sm font-medium text-gray-700;
+  }
+
+  /* Page container for consistent layouts */
+  .page-container {
+    @apply max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
