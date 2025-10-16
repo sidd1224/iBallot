@@ -8,6 +8,7 @@ const pool = require("../../database/db");
 const contract = require("../../blockchain/contract");
 const { encrypt } = require("../../utils/aesUtils");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils"); // Import the helper
+const { body, validationResult } = require('express-validator');
 
 require("dotenv").config();
 
@@ -27,7 +28,18 @@ function getAgeFromDOB(dobStr) {
  * Creates user record and populates ECI admin data with wallet information.
  * @access  Public
  */
-router.post("/", async (req, res) => {
+router.post("/", 
+  // --- NEW: Add validation middleware ---
+  body('username').isAlphanumeric().withMessage('Username must be alphanumeric.'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.'),
+  body('phoneNumber').isMobilePhone('en-IN').withMessage('Invalid Indian phone number.'),
+  // --- END NEW ---
+  async (req, res) => {
+    // --- NEW: Check for validation errors ---
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
   let client;
 
   try {

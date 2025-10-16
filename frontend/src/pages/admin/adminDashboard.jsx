@@ -116,6 +116,19 @@ const HomePage = ({ adminToken }) => {
         </div>
     );
 };
+// frontend/src/pages/admin/adminDashboard.jsx
+
+// ... (imports and other components are unchanged)
+
+// frontend/src/pages/admin/adminDashboard.jsx
+
+// ... (imports and other components are unchanged)
+// frontend/src/pages/admin/adminDashboard.jsx
+
+// ... (imports and other components are unchanged)
+// frontend/src/pages/admin/adminDashboard.jsx
+
+// ... (imports and other components are unchanged)
 
 const ElectionsPage = ({ adminToken }) => {
   const [elections, setElections] = useState([]);
@@ -130,7 +143,6 @@ const ElectionsPage = ({ adminToken }) => {
   });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
-
   const apiUrl = import.meta.env.VITE_API_URL;
 
   const fetchElections = async () => {
@@ -163,34 +175,64 @@ const ElectionsPage = ({ adminToken }) => {
       e.preventDefault();
       setFormError('');
       setFormSuccess('');
-
       try {
           const payload = {
               ...formState,
               electionId: parseInt(formState.electionId),
+              startTime: new Date(formState.startTime).toISOString(),
+              endTime: new Date(formState.endTime).toISOString(),
               enabled_constituencies: formState.enabledConstituencies.split(',').map(item => parseInt(item.trim())).filter(Number.isInteger)
           };
-
           await axios.post(`${apiUrl}/admin/elections`, payload, {
               headers: { Authorization: adminToken }
           });
-          
           setFormSuccess('Election created successfully!');
-          setFormState({ electionId: '', name: '', type: 'STATE_LEGISLATIVE', startTime: '', endTime: '', enabledConstituencies: '' }); // Reset form
-          fetchElections(); // Refresh the list
+          setFormState({ electionId: '', name: '', type: 'STATE_LEGISLATIVE', startTime: '', endTime: '', enabledConstituencies: '' });
+          fetchElections();
       } catch (err) {
           setFormError(err.response?.data?.error || 'Failed to create election.');
           console.error(err);
       }
   };
 
+  // --- NEW: Logic to categorize elections ---
+  const now = new Date();
+  const ongoingElections = elections.filter(e => new Date(e.start_time) <= now && new Date(e.end_time) >= now);
+  const upcomingElections = elections.filter(e => new Date(e.start_time) > now);
+  const completedElections = elections.filter(e => new Date(e.end_time) < now);
+
+  // --- NEW: Reusable component to render a list of elections ---
+  const ElectionList = ({ title, elections, titleColor = 'text-gray-700' }) => (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h3 className={`font-bold text-lg mb-4 ${titleColor}`}>{title}</h3>
+      {loading ? <p>Loading...</p> : (
+        <div className="divide-y divide-gray-200">
+          {elections.length > 0 ? elections.map(e => (
+            <div key={e.election_id} className="p-3 flex flex-col md:flex-row justify-between md:items-center">
+                <div className="mb-2 md:mb-0">
+                    <p className="font-semibold">{e.name}</p>
+                    <p className="text-sm text-gray-500">ID: {e.election_id} | Type: {e.type}</p>
+                </div>
+                <div className="text-sm text-left md:text-right">
+                    <p><strong>Starts:</strong> {new Date(e.start_time).toLocaleString()}</p>
+                    <p><strong>Ends:</strong> {new Date(e.end_time).toLocaleString()}</p>
+                </div>
+            </div>
+          )) : <p className="text-gray-500">No elections in this category.</p>}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-8">
       <h2 className="text-3xl font-bold">Manage Elections</h2>
       
+      {/* Create Election Form (unchanged) */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="font-bold text-lg mb-4 text-gray-700">Create New Election</h3>
         <form onSubmit={handleCreateElection} className="space-y-4">
+            {/* ... form inputs ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input name="electionId" type="number" value={formState.electionId} onChange={handleInputChange} placeholder="Election ID (e.g., 101)" required className="p-2 border rounded" />
                 <input name="name" type="text" value={formState.name} onChange={handleInputChange} placeholder="Election Name" required className="p-2 border rounded" />
@@ -214,29 +256,15 @@ const ElectionsPage = ({ adminToken }) => {
         </form>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="font-bold text-lg mb-4 text-gray-700">Existing Elections</h3>
-        {loading ? <p>Loading elections...</p> : (
-          <div className="divide-y divide-gray-200">
-            {elections.length > 0 ? elections.map(e => (
-              <div key={e.election_id} className="p-3 flex flex-col md:flex-row justify-between md:items-center">
-                  <div className="mb-2 md:mb-0">
-                      <p className="font-semibold">{e.name}</p>
-                      <p className="text-sm text-gray-500">ID: {e.election_id} | Type: {e.type}</p>
-                  </div>
-                  <div className="text-sm text-left md:text-right">
-                      <p><strong>Starts:</strong> {new Date(e.start_time).toLocaleString()}</p>
-                      <p><strong>Ends:</strong> {new Date(e.end_time).toLocaleString()}</p>
-                  </div>
-              </div>
-            )) : <p className="text-gray-500">No elections found.</p>}
-          </div>
-        )}
-      </div>
+      {/* --- NEW: Categorized Election Lists --- */}
+      <ElectionList title="🟢 Ongoing Elections" elections={ongoingElections} titleColor="text-green-700" />
+      <ElectionList title="🔵 Upcoming Elections" elections={upcomingElections} titleColor="text-blue-700" />
+      <ElectionList title="⚫ Completed Elections" elections={completedElections} titleColor="text-gray-700" />
     </div>
   );
 };
 
+// ... (rest of the file is unchanged)
 const CandidatesPage = ({ adminToken }) => {
     const [file, setFile] = useState(null);
     const [electionId, setElectionId] = useState('');
@@ -245,6 +273,49 @@ const CandidatesPage = ({ adminToken }) => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const apiUrl = import.meta.env.VITE_API_URL;
+
+    // --- State for multiple symbol files ---
+    const [symbolFiles, setSymbolFiles] = useState([]);
+    const [symbolUploadMessage, setSymbolUploadMessage] = useState('');
+    const [symbolUploadError, setSymbolUploadError] = useState('');
+    const [symbolLoading, setSymbolLoading] = useState(false);
+    const [uploadedSymbolPaths, setUploadedSymbolPaths] = useState([]);
+
+    // --- Handler for multiple symbol uploads ---
+    const handleSymbolUpload = async (e) => {
+        e.preventDefault();
+        if (symbolFiles.length === 0) {
+            setSymbolUploadError("Please select one or more image files.");
+            return;
+        }
+        setSymbolLoading(true);
+        setSymbolUploadMessage('');
+        setSymbolUploadError('');
+        setUploadedSymbolPaths([]);
+
+        const formData = new FormData();
+        for (let i = 0; i < symbolFiles.length; i++) {
+            formData.append('symbols', symbolFiles[i]);
+        }
+
+
+        try {
+            const response = await axios.post(`${apiUrl}/admin/candidates/upload-symbol`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': adminToken
+                }
+            });
+            setSymbolUploadMessage(`✅ ${response.data.filePaths.length} symbols uploaded!`);
+            setUploadedSymbolPaths(response.data.filePaths);
+        } catch (err) {
+            setSymbolUploadError('Symbol upload failed. Please try again.');
+            console.error(err);
+        } finally {
+            setSymbolLoading(false);
+        }
+    };
+
 
     const handleUpload = async (e) => {
         e.preventDefault();
@@ -278,48 +349,265 @@ const CandidatesPage = ({ adminToken }) => {
     };
 
     return (
-        <div>
-            <h2 className="text-3xl font-bold mb-6">Upload Candidates via CSV</h2>
-            <form onSubmit={handleUpload} className="bg-white p-8 rounded-lg shadow-md space-y-6">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Election ID</label>
-                    <input type="number" value={electionId} onChange={e => setElectionId(e.target.value)} placeholder="e.g., 101" className="w-full p-2 border border-gray-300 rounded mt-1" required/>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Election Type</label>
-                    <select value={electionType} onChange={e => setElectionType(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1">
-                        <option value="ac">Assembly (ac)</option>
-                        <option value="pc">Parliamentary (pc)</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Candidates CSV File</label>
-                    <input type="file" onChange={e => setFile(e.target.files[0])} accept=".csv" className="w-full p-2 border border-gray-300 rounded mt-1" required />
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 font-semibold rounded hover:bg-blue-700 disabled:bg-blue-400 transition-colors">
-                    {loading ? 'Uploading...' : 'Upload Candidates'}
-                </button>
-                {message && <p className="text-green-600 text-center font-semibold">{message}</p>}
-                {error && <p className="text-red-600 text-center font-semibold">{error}</p>}
-            </form>
-        </div>
-    );
-};
+        <div className="space-y-8">
+            <h2 className="text-3xl font-bold mb-6">Manage Candidates</h2>
+            
+            {/* --- UPDATED: Symbol Upload Section --- */}
+            <div className="bg-white p-8 rounded-lg shadow-md space-y-6">
+                <h3 className="text-xl font-bold text-gray-800">Step 1: Upload Party Symbols</h3>
+                <form onSubmit={handleSymbolUpload}>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Symbol Images (PNG, JPG)</label>
+                        <input type="file" onChange={e => setSymbolFiles(e.target.files)} accept=".png,.jpg,.jpeg" className="w-full p-2 border border-gray-300 rounded mt-1" required multiple />
+                    </div>
+                    <button type="submit" disabled={symbolLoading} className="w-full bg-gray-600 text-white p-3 font-semibold rounded hover:bg-gray-700 disabled:bg-gray-400 transition-colors">
+                        {symbolLoading ? 'Uploading Symbols...' : 'Upload Symbols'}
+                    </button>
+                    {symbolUploadMessage && <p className="text-green-600 text-center font-semibold">{symbolUploadMessage}</p>}
+                    {symbolUploadError && <p className="text-red-600 text-center font-semibold">{symbolUploadError}</p>}
+                    {uploadedSymbolPaths.length > 0 && (
+                        <div className="mt-4 p-4 bg-gray-100 rounded">
+                            <h4 className="font-semibold text-gray-800">Uploaded Symbol Paths:</h4>
+                            <ul className="list-disc list-inside mt-2 text-sm text-gray-700">
+                                {uploadedSymbolPaths.map(path => <li key={path}>{path}</li>)}
+                            </ul>
+                        </div>
+                    )}
+                </form>
+            </div>
 
-const ResultsPage = ({ adminToken }) => {
-    // This component would be expanded to allow an admin to select an election
-    // and then view the results by constituency.
-    return (
-        <div>
-            <h2 className="text-3xl font-bold mb-6">View Election Results</h2>
-            <div className="bg-white p-6 rounded-lg shadow-md">
-                 <p className="text-gray-600">This section will allow you to select an election and view the live results as they are tallied on the blockchain.</p>
+
+            {/* Existing CSV Upload Section */}
+            <div className="bg-white p-8 rounded-lg shadow-md space-y-6">
+                 <h3 className="text-xl font-bold text-gray-800">Step 2: Upload Candidates CSV</h3>
+                <form onSubmit={handleUpload}>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Election ID</label>
+                        <input type="number" value={electionId} onChange={e => setElectionId(e.target.value)} placeholder="e.g., 101" className="w-full p-2 border border-gray-300 rounded mt-1" required/>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700">Election Type</label>
+                        <select value={electionType} onChange={e => setElectionType(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1">
+                            <option value="ac">Assembly (ac)</option>
+                            <option value="pc">Parliamentary (pc)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Candidates CSV File</label>
+                        <input type="file" onChange={e => setFile(e.target.files[0])} accept=".csv" className="w-full p-2 border border-gray-300 rounded mt-1" required />
+                        <p className="text-xs text-gray-500 mt-1">CSV must contain columns: `candidateName`, `party_name`, `symbol` (with the path from Step 1), and either `assemblyId` or `parliamentaryId`.</p>
+                    </div>
+                    <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 font-semibold rounded hover:bg-blue-700 disabled:bg-blue-400 transition-colors">
+                        {loading ? 'Uploading...' : 'Upload Candidates CSV'}
+                    </button>
+                    {message && <p className="text-green-600 text-center font-semibold">{message}</p>}
+                    {error && <p className="text-red-600 text-center font-semibold">{error}</p>}
+                </form>
             </div>
         </div>
     );
 };
 
+const ResultsPage = ({ adminToken }) => {
+  const [elections, setElections] = useState([]);
+  const [selectedElectionId, setSelectedElectionId] = useState('');
+  
+  const [constituencyId, setConstituencyId] = useState('');
+  const [constituencyResults, setConstituencyResults] = useState([]);
+  
+  const [summary, setSummary] = useState(null);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  useEffect(() => {
+    const fetchElections = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/admin/elections`, {
+          headers: { Authorization: adminToken }
+        });
+        setElections(response.data.elections);
+      } catch (err) {
+        console.error("Failed to fetch elections:", err);
+      }
+    };
+    if (adminToken) fetchElections();
+  }, [adminToken, apiUrl]);
+
+  const handleElectionSelect = async (electionId) => {
+    setSelectedElectionId(electionId);
+    setSummary(null);
+    setConstituencyResults([]);
+    setConstituencyId('');
+    if (!electionId) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.get(`${apiUrl}/admin/results/summary/${electionId}`, {
+        headers: { Authorization: adminToken }
+      });
+      setSummary(response.data);
+    } catch (err) {
+      setError('Failed to fetch election summary.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleFetchConstituencyResults = async (e) => {
+      e.preventDefault();
+      if (!constituencyId) return;
+      setLoading(true);
+      
+      try {
+          const response = await axios.get(`${apiUrl}/admin/results/${selectedElectionId}/${constituencyId}`, {
+              headers: { Authorization: adminToken }
+          });
+          setConstituencyResults(response.data.results);
+      } catch (err) {
+          setError('Failed to fetch constituency results.');
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  // --- NEW: Function to handle the tie-breaker ---
+  const handleBreakTie = async () => {
+    if (!summary?.tieDetected) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post(`${apiUrl}/admin/results/break-tie`, {
+        electionId: selectedElectionId,
+        tiedParties: summary.tiedParties
+      }, {
+        headers: { Authorization: adminToken }
+      });
+
+      alert(`Draw of lots complete! The winner is: ${response.data.winningParty.name}`);
+      // Refresh the summary to show the final winner
+      handleElectionSelect(selectedElectionId);
+
+    } catch (err) {
+      setError('Failed to resolve the tie. Please try again.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  return (
+    <div>
+      <h2 className="text-3xl font-bold mb-6">View Election Results</h2>
+      
+      <div className="mb-8">
+        <label className="block text-lg font-medium text-gray-700">Select an Election</label>
+        <select
+          value={selectedElectionId}
+          onChange={(e) => handleElectionSelect(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded mt-1 text-lg"
+        >
+          <option value="">-- Choose an Election --</option>
+          {elections.map(e => (
+            <option key={e.election_id} value={e.election_id}>
+              {e.name} (ID: {e.election_id})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <p className="text-center">Loading results...</p>}
+      {error && <p className="text-red-600 text-center font-semibold">{error}</p>}
+
+      {summary && (
+        <div className="space-y-8">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="font-bold text-xl mb-4">Voter Turnout</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <StatCard title="Total Eligible Voters" value={summary.totalVoters} icon="👥" />
+              <StatCard title="Total Votes Cast" value={summary.votersVoted} icon="🗳️" />
+            </div>
+          </div>
+
+          {summary.isElectionOver ? (
+            <>
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="font-bold text-xl mb-4 text-green-700">Final Results</h3>
+                
+                {/* --- NEW: Tie-breaker UI --- */}
+                {summary.tieDetected ? (
+                  <div className="text-center p-4 bg-orange-100 rounded-lg">
+                    <h4 className="font-bold text-lg text-orange-800">A Tie Has Occurred!</h4>
+                    <p className="text-orange-700 my-2">The following parties have the same number of votes:</p>
+                    <ul className="font-semibold">
+                      {summary.tiedParties.map(p => <li key={p.name}>{p.name} ({p.votes.toLocaleString()} votes)</li>)}
+                    </ul>
+                    <button onClick={handleBreakTie} className="mt-4 bg-orange-500 text-white font-bold py-2 px-4 rounded hover:bg-orange-600">
+                      Initiate Draw of Lots to Decide Winner
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <StatCard title="Winning Party (Overall)" value={summary.winningParty.name} icon="🏆" />
+                      <StatCard title="Total Votes for Winner" value={summary.winningParty.votes.toLocaleString()} icon="⭐" />
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="font-bold text-xl mb-4">Constituency Breakdown</h3>
+                <form onSubmit={handleFetchConstituencyResults} className="flex items-end gap-4 mb-4">
+                    <div className="flex-grow">
+                      <label className="block text-sm font-medium text-gray-700">Constituency ID</label>
+                      <input
+                        type="number"
+                        value={constituencyId}
+                        onChange={e => setConstituencyId(e.target.value)}
+                        placeholder="Enter ID (e.g., 101)"
+                        className="w-full p-2 border border-gray-300 rounded mt-1"
+                      />
+                    </div>
+                    <button type="submit" className="bg-gray-600 text-white p-2 rounded hover:bg-gray-700">Fetch</button>
+                </form>
+
+                {constituencyResults.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Results for Constituency #{constituencyId}</h4>
+                    {constituencyResults.map((c, i) => (
+                      <div key={c.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center">
+                          <span className="font-bold w-8">{i + 1}.</span>
+                          <img src={`${apiUrl}${c.symbol}`} alt="" className="w-8 h-8 object-contain mr-3"/>
+                          <div>
+                            <p className="font-semibold">{c.name}</p>
+                            <p className="text-sm text-gray-500">{c.party_name}</p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-lg">{c.votes.toLocaleString()} Votes</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="bg-yellow-100 p-6 rounded-lg shadow-md text-center">
+              <p className="font-semibold text-yellow-800">The election is still in progress. Final results and breakdowns will be available after it ends.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ... (rest of the file is unchanged)
 // --- Main Admin Dashboard Component ---
 const AdminDashboard = () => {
     const [currentPage, setCurrentPage] = useState('home');

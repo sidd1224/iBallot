@@ -82,7 +82,14 @@ function Register() {
 
 
       setSuccess(response.data.message);
+     // --- UPDATED: Reset state after a delay, then navigate ---
       setTimeout(() => {
+        // Clear the shared verification context for a clean state next time
+        setUsername('');
+        setIsVerified(false);
+        setVerificationData(null);
+        
+        // Navigate to the login page
         navigate('/login');
       }, 3000);
     } catch (err) {

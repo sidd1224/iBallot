@@ -4,12 +4,13 @@ const bcrypt = require("bcrypt");
 const pool = require("../../database/db");
 const votingContract = require("../../blockchain/contract");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
+const jwt = require('jsonwebtoken');
 
 require("dotenv").config();
 
 /**
  * @route   POST /login
- * @desc    Authenticates a user and checks voting status only if an election is active.
+ * @desc    Authenticates a user and blocks login if they have already voted in an active election.
  * @access  Public
  */
 router.post("/", async (req, res) => {
@@ -23,7 +24,7 @@ router.post("/", async (req, res) => {
 
     client = await pool.connect();
 
-    // Step 1: Authenticate user
+    // Step 1: Authenticate user credentials
     const userResult = await client.query(
       "SELECT id, username, uid_hash, password FROM users WHERE username = $1",
       [username]
@@ -50,22 +51,25 @@ router.post("/", async (req, res) => {
     let electionId = null;
     const voterHash = "0x" + user.uid_hash;
 
-    // Step 3: If an election is active, THEN check the blockchain
+    // Step 3: If an election is active, check the blockchain for voting status
     if (electionResult.rows.length > 0) {
       electionId = electionResult.rows[0].election_id;
       try {
-        // --- UPDATED: Wrapped the blockchain call in the retry helper ---
         hasVoted = await retryBlockchainCall(() => votingContract.hasVoted(electionId, voterHash));
       } catch (err) {
-        // The retry helper will throw an error if all retries fail.
-        // We log it but allow the login to proceed.
         console.error("❌ Final attempt to check voting status failed:", err.message);
+        // If the check fails, we should still deny login for safety during an active election.
+        return res.status(500).json({ error: "Could not verify voting status. Please try again later." });
       }
-    } else {
-      console.log("✅ No active election found. Bypassing blockchain check.");
     }
 
-    // Step 4: Get ECI admin data for this user
+    // --- NEW: Block login if user has already voted ---
+    if (hasVoted) {
+      return res.status(403).json({ error: "You have already voted in the current election and cannot log in again." });
+    }
+    // --- END NEW LOGIC ---
+
+    // If the user has NOT voted, proceed with the login process
     const eciResult = await client.query(
       "SELECT ac_name, pc_name, ward_number, wallet_address, ac_id, pc_id FROM eci_admin_data WHERE uid_hash = $1",
       [user.uid_hash]
@@ -76,18 +80,24 @@ router.post("/", async (req, res) => {
 
     const eciData = eciResult.rows[0];
 
-    // Step 5: Update last login timestamp
     await client.query(
       "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
       [user.id]
     );
+    const payload = {
+      username: user.username,
+      uidHash: user.uid_hash,
+    };
 
-    // Step 6: Send response
+    // Sign the token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
     res.status(200).json({
       message: "✅ Login successful",
       voterHash: voterHash,
       uidHash: user.uid_hash,
       hasVoted: hasVoted,
+      token,
       electionId: electionId,
       user: {
         username: user.username,

@@ -71,6 +71,7 @@ services:
       - VITE_STORAGE_BUCKET=${VITE_STORAGE_BUCKET}
       - VITE_MESSAGING_SENDER_ID=${VITE_MESSAGING_SENDER_ID}
       - VITE_APP_ID=${VITE_APP_ID}
+      - VITE_API_URL=http://localhost:5000
 
   firebase:
     image: node:18

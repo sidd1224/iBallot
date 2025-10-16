@@ -1,3 +1,4 @@
+// frontend/src/pages/user/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +9,9 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("currentUser"));
+  
+  // --- NEW: Get voting status from local storage ---
+  const hasVoted = currentUser?.hasVoted;
 
   useEffect(() => {
     const fetchActiveElections = async () => {
@@ -25,21 +29,18 @@ const Dashboard = () => {
       }
     };
 
-    if (currentUser?.user?.username) {
+    // Only fetch elections if the user has not voted
+    if (currentUser?.user?.username && !hasVoted) {
         fetchActiveElections();
     } else {
-        setError("You are not logged in.");
         setLoading(false);
     }
-  }, [currentUser?.user?.username]);
+  }, [currentUser?.user?.username, hasVoted]);
 
   const handleProceedToVote = (election) => {
     const constituencyData = currentUser.constituency;
     let constituencyId;
 
-    // --- CORRECTED LOGIC ---
-    // This now correctly uses the numeric ac_id or pc_id from the user's data
-    // which was stored in localStorage after a successful login.
     if (election.type === 'STATE_LEGISLATIVE') {
         constituencyId = constituencyData.ac_id;
     } else if (election.type === 'PARLIAMENTARY') {
@@ -51,7 +52,6 @@ const Dashboard = () => {
         return;
     }
     
-    // Navigate to the candidate list page with the correct numeric IDs
     navigate(`/candidates/${election.election_id}/${constituencyId}`);
   };
 
@@ -87,22 +87,32 @@ const Dashboard = () => {
         </header>
 
         <main>
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Your Eligible Elections</h2>
-          
-          {loading && <p>Loading elections...</p>}
-          
-          {error && <p className="text-red-500">{error}</p>}
+          {/* --- NEW: Conditional rendering based on voting status --- */}
+          {hasVoted ? (
+            <div className="text-center py-10 px-6 bg-green-100 border-l-4 border-green-500 rounded-lg shadow-sm">
+              <p className="text-lg font-semibold text-green-800">Thank you for voting!</p>
+              <p className="text-gray-600 mt-2">Your vote has been securely recorded on the blockchain.</p>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Your Eligible Elections</h2>
+              
+              {loading && <p>Loading elections...</p>}
+              
+              {error && <p className="text-red-500">{error}</p>}
 
-          {!loading && !error && (
-            <div className="space-y-6">
-              {elections.length > 0 ? (
-                elections.map(renderElectionCard)
-              ) : (
-                <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm">
-                  <p className="text-gray-500">There are no active elections for your constituency at the moment.</p>
+              {!loading && !error && (
+                <div className="space-y-6">
+                  {elections.length > 0 ? (
+                    elections.map(renderElectionCard)
+                  ) : (
+                    <div className="text-center py-10 px-6 bg-white rounded-lg shadow-sm">
+                      <p className="text-gray-500">There are no active elections for your constituency at the moment.</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </main>
       </div>
@@ -111,4 +121,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
