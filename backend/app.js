@@ -4,6 +4,8 @@ const cors = require("cors");
 require("dotenv").config();
 const rateLimit = require('express-rate-limit');
 const userAuth = require("./middleware/userAuth"); // Import user authentication middleware
+const adminAuth = require("./middleware/adminAuth"); // Import admin authentication middleware
+const jwt = require('jsonwebtoken'); // Import JWT library
 
 const app = express();
 app.use(
@@ -53,4 +55,3 @@ app.use("/admin/eci-data", adminAuth, require("./routes/admin/eciData"));
 
 module.exports = app;
 
-module.exports = app;

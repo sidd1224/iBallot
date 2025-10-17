@@ -55,6 +55,9 @@ function Register() {
   /**
    * Complete registration after verification
    */
+/**
+   * Complete registration after verification
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -74,15 +77,14 @@ function Register() {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       const response = await axios.post(`${apiUrl}/register`, {
-  username,
-  password,
-  phoneNumber: verificationData.phoneNumber, // backend gets it
-  // You can include other required fields here
-});
-
+        username,
+        password,
+        phoneNumber: verificationData.phoneNumber, // backend gets it
+      });
 
       setSuccess(response.data.message);
-     // --- UPDATED: Reset state after a delay, then navigate ---
+      
+      // --- UPDATED: Reset state after a delay, then navigate ---
       setTimeout(() => {
         // Clear the shared verification context for a clean state next time
         setUsername('');
@@ -92,10 +94,18 @@ function Register() {
         // Navigate to the login page
         navigate('/login');
       }, 3000);
+
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.error || 'An unexpected error occurred. Please try again.';
-      setError(errorMessage);
+      // --- UPDATED: Better error handling for validation ---
+      if (err.response?.data?.errors) {
+        // If the backend sends specific validation errors, display them.
+        const errorMessages = err.response.data.errors.map(e => e.msg).join(' ');
+        setError(errorMessages);
+      } else {
+        const errorMessage =
+          err.response?.data?.error || 'An unexpected error occurred. Please try again.';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

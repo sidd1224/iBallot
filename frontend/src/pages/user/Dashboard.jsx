@@ -17,9 +17,17 @@ const Dashboard = () => {
     const fetchActiveElections = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL;
-        const response = await axios.get(`${apiUrl}/dashboard`, {
-          params: { username: currentUser?.user?.username }
-        });
+        
+        // --- 1. Get the token from the user object ---
+        const token = currentUser?.token;
+
+        // --- 2. Add the token to the request headers ---
+        const response = await axios.get(`${apiUrl}/dashboard`, {
+          params: { username: currentUser?.user?.username },
+         headers: {
+            'Authorization': `Bearer ${token}` 
+          }
+        });
         setElections(response.data.elections);
       } catch (err) {
         setError('Failed to fetch active elections. Please try again later.');

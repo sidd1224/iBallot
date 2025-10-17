@@ -19,11 +19,21 @@ const CandidateList = () => {
   const currentUser = JSON.parse(localStorage.getItem("currentUser"));
   const apiUrl = import.meta.env.VITE_API_URL;
 
+// CandidateList.jsx
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
-        const response = await axios.get(`${apiUrl}/api/candidates/${electionId}/${assemblyId}`);
+        // --- 1. Get the token ---
+        const token = currentUser?.token;
+
+        // --- 2. Add the headers to the request ---
+        const response = await axios.get(`${apiUrl}/api/candidates/${electionId}/${assemblyId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         setCandidates(response.data.candidates);
+// ...
       } catch (err) {
         setError('Failed to fetch the list of candidates.');
         console.error(err);
@@ -48,16 +58,28 @@ const CandidateList = () => {
 
     setVoteError('');
     setIsVoting(true);
-
+// CandidateList.jsx
     try {
-      const response = await axios.post(`${apiUrl}/vote`, {
-        username: currentUser?.user?.username,
-        password: password,
-        electionId: parseInt(electionId),
-        candidateId: selectedCandidate,
-      });
+      // --- 1. Get the token ---
+      const token = currentUser?.token;
+
+      // --- 2. Add the token to the request headers ---
+      const response = await axios.post(`${apiUrl}/vote`, 
+        { // <-- This is the data (body)
+          username: currentUser?.user?.username,
+          password: password,
+          electionId: parseInt(electionId),
+          candidateId: selectedCandidate,
+        },
+        { // <-- This is the config object (3rd argument)
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
 
       alert(`Vote cast successfully!\nTransaction Hash: ${response.data.txHash}`);
+// ...
       navigate('/login');
 
     } catch (err) {
