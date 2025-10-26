@@ -1,0 +1,20 @@
+server {
+    # This ${PORT} variable will be replaced by Cloud Run's port
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+
+    location / {
+        # This is the key for React Router
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Optional: Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+}
