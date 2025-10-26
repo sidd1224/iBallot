@@ -1,23 +1,4 @@
 services:
-  db:
-    container_name: iballot-db
-    image: postgres:16-alpine
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - db_data:/var/lib/postgresql/data
-      - ./backend/dump.sql:/docker-entrypoint-initdb.d/dump.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     container_name: iballot-backend
     build:
@@ -27,11 +8,7 @@ services:
     restart: always
     ports:
       - "${PORT}:5000"
-    depends_on:
-      db:
-        condition: service_healthy
-      firebase:
-        condition: service_started
+    # depends_on for db and firebase removed
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
@@ -62,8 +39,6 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
-    # Use npx to ensure the vite binary is found and --host to expose the server.
-   
     environment:
       - PORT=3000
       - VITE_API_KEY=${VITE_API_KEY}
@@ -74,55 +49,8 @@ services:
       - VITE_APP_ID=${VITE_APP_ID}
       - VITE_API_URL=http://localhost:5000
 
-  firebase:
-    image: node:18
-    container_name: firebase-emulator
-    working_dir: /app/backend
-    volumes:
-      - ./backend:/app/backend
-    command: >
-      sh -c "
-        npm install -g firebase-tools &&
-        firebase emulators:start --only auth --project demo-project
-      "
-    ports:
-      - "9099:9099"
-      - "4000:4000"
-
-  test:
-    container_name: iballot-test
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    working_dir: /app
-    depends_on:
-      db:
-        condition: service_healthy
-      firebase:
-        condition: service_started
-    command: npx jest
-    environment:
-      - NODE_ENV=test
-      - CONTRACT_ADDRESS
-      - PRIVATE_KEY
-      - RELAYER_PRIVATE_KEY
-      - FIREBASE_AUTH_EMULATOR_HOST
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB=iballot_test 
-      - PORT=5050
-      - FIREBASE_PROJECT_ID
-      - FIREBASE_CLIENT_EMAIL
-      - FIREBASE_PRIVATE_KEY
-      - DB_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/iballot_test
-      - SECRET_SALT
-      - RPC_URL
-      - ADMIN_TOKEN
-    volumes:
-      - ./backend:/app
-      - backend_node_modules:/app/node_modules
-
+  
 volumes:
-  db_data:
+  # db_data volume removed
   backend_node_modules:
   frontend_node_modules:

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom'; // <-- REMOVED
+import { toast, ToastContainer } from "react-toastify";
 
 // --- UI Helper Components ---
-
+// ... (StatCard component is unchanged)
 const StatCard = ({ title, value, icon }) => (
     <div className="bg-white p-6 rounded-lg shadow-md flex items-center transition-transform hover:scale-105">
         <div className="mr-4 text-4xl text-indigo-500">{icon}</div>
@@ -14,7 +15,9 @@ const StatCard = ({ title, value, icon }) => (
     </div>
 );
 
+// ... (AdminLayout component is unchanged)
 const AdminLayout = ({ children, setCurrentPage, handleLogout }) => {
+// ... (existing code inside AdminLayout)
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
     const handleNavClick = (page) => {
@@ -24,6 +27,8 @@ const AdminLayout = ({ children, setCurrentPage, handleLogout }) => {
 
     return (
         <div className="min-h-screen bg-gray-100 font-sans">
+            <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+            
             {/* Mobile Menu Button */}
             <button
                 onClick={() => setSidebarOpen(true)}
@@ -76,7 +81,8 @@ const AdminLayout = ({ children, setCurrentPage, handleLogout }) => {
 
 // --- Page-Specific Components ---
 
-const HomePage = ({ adminToken }) => {
+// MODIFIED: Added isActive prop
+const HomePage = ({ adminToken, isActive }) => {
     const [stats, setStats] = useState({ totalVoters: 0, activeElections: 0, totalCandidates: 0 });
     const [loading, setLoading] = useState(true);
     const apiUrl = import.meta.env.VITE_API_URL;
@@ -84,6 +90,7 @@ const HomePage = ({ adminToken }) => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
+                setLoading(true); // Set loading true on fetch
                 const response = await axios.get(`${apiUrl}/admin/dashboard/summary`, {
                     headers: { Authorization: adminToken }
                 });
@@ -96,12 +103,15 @@ const HomePage = ({ adminToken }) => {
                 setLoading(false);
             }
         };
-        if(adminToken) {
+        // MODIFIED: Only fetch if this page is active
+        if(adminToken && isActive) {
             fetchStats();
         }
-    }, [adminToken, apiUrl]);
+    // MODIFIED: Added isActive to dependency array
+    }, [adminToken, apiUrl, isActive]);
 
     return (
+// ... (existing code inside HomePage)
         <div>
             <h2 className="text-3xl font-bold mb-6 text-gray-800">Dashboard Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -116,22 +126,11 @@ const HomePage = ({ adminToken }) => {
         </div>
     );
 };
-// frontend/src/pages/admin/adminDashboard.jsx
 
-// ... (imports and other components are unchanged)
-
-// frontend/src/pages/admin/adminDashboard.jsx
-
-// ... (imports and other components are unchanged)
-// frontend/src/pages/admin/adminDashboard.jsx
-
-// ... (imports and other components are unchanged)
-// frontend/src/pages/admin/adminDashboard.jsx
-
-// ... (imports and other components are unchanged)
-
-const ElectionsPage = ({ adminToken }) => {
+// MODIFIED: Added isActive prop
+const ElectionsPage = ({ adminToken, isActive }) => {
   const [elections, setElections] = useState([]);
+// ... (rest of state in ElectionsPage is unchanged)
   const [loading, setLoading] = useState(true);
   const [formState, setFormState] = useState({
       electionId: '',
@@ -146,6 +145,7 @@ const ElectionsPage = ({ adminToken }) => {
   const apiUrl = import.meta.env.VITE_API_URL;
 
   const fetchElections = async () => {
+// ... (existing code inside fetchElections)
     try {
       setLoading(true);
       const response = await axios.get(`${apiUrl}/admin/elections`, {
@@ -161,17 +161,21 @@ const ElectionsPage = ({ adminToken }) => {
   };
 
   useEffect(() => {
-    if (adminToken) {
+    // MODIFIED: Only fetch if this page is active
+    if (adminToken && isActive) {
         fetchElections();
     }
-  }, [adminToken, apiUrl]);
+  // MODIFIED: Added isActive to dependency array
+  }, [adminToken, apiUrl, isActive]);
 
   const handleInputChange = (e) => {
+// ... (existing code inside handleInputChange)
       const { name, value } = e.target;
       setFormState(prevState => ({ ...prevState, [name]: value }));
   };
 
   const handleCreateElection = async (e) => {
+// ... (existing code inside handleCreateElection)
       e.preventDefault();
       setFormError('');
       setFormSuccess('');
@@ -196,12 +200,14 @@ const ElectionsPage = ({ adminToken }) => {
   };
 
   // --- NEW: Logic to categorize elections ---
+// ... (categorization logic is unchanged)
   const now = new Date();
   const ongoingElections = elections.filter(e => new Date(e.start_time) <= now && new Date(e.end_time) >= now);
   const upcomingElections = elections.filter(e => new Date(e.start_time) > now);
   const completedElections = elections.filter(e => new Date(e.end_time) < now);
 
   // --- NEW: Reusable component to render a list of elections ---
+// ... (ElectionList component is unchanged)
   const ElectionList = ({ title, elections, titleColor = 'text-gray-700' }) => (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h3 className={`font-bold text-lg mb-4 ${titleColor}`}>{title}</h3>
@@ -225,6 +231,7 @@ const ElectionsPage = ({ adminToken }) => {
   );
 
   return (
+// ... (existing code inside ElectionsPage return)
     <div className="space-y-8">
       <h2 className="text-3xl font-bold">Manage Elections</h2>
       
@@ -264,9 +271,14 @@ const ElectionsPage = ({ adminToken }) => {
   );
 };
 
-// ... (rest of the file is unchanged)
-const CandidatesPage = ({ adminToken }) => {
-    const [file, setFile] = useState(null);
+// MODIFIED: Added isActive prop
+const CandidatesPage = ({ adminToken, isActive }) => {
+    // State for the single CSV file
+// ... (rest of state in CandidatesPage is unchanged)
+    const [file, setFile] = useState(null); 
+    // State for the list of symbol image files
+    const [symbolFiles, setSymbolFiles] = useState(null); 
+    
     const [electionId, setElectionId] = useState('');
     const [electionType, setElectionType] = useState('ac');
     const [message, setMessage] = useState('');
@@ -274,74 +286,51 @@ const CandidatesPage = ({ adminToken }) => {
     const [loading, setLoading] = useState(false);
     const apiUrl = import.meta.env.VITE_API_URL;
 
-    // --- State for multiple symbol files ---
-    const [symbolFiles, setSymbolFiles] = useState([]);
-    const [symbolUploadMessage, setSymbolUploadMessage] = useState('');
-    const [symbolUploadError, setSymbolUploadError] = useState('');
-    const [symbolLoading, setSymbolLoading] = useState(false);
-    const [uploadedSymbolPaths, setUploadedSymbolPaths] = useState([]);
-
-    // --- Handler for multiple symbol uploads ---
-    const handleSymbolUpload = async (e) => {
-        e.preventDefault();
-        if (symbolFiles.length === 0) {
-            setSymbolUploadError("Please select one or more image files.");
-            return;
-        }
-        setSymbolLoading(true);
-        setSymbolUploadMessage('');
-        setSymbolUploadError('');
-        setUploadedSymbolPaths([]);
-
-        const formData = new FormData();
-        for (let i = 0; i < symbolFiles.length; i++) {
-            formData.append('symbols', symbolFiles[i]);
-        }
-
-
-        try {
-            const response = await axios.post(`${apiUrl}/admin/candidates/upload-symbol`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': adminToken
-                }
-            });
-            setSymbolUploadMessage(`✅ ${response.data.filePaths.length} symbols uploaded!`);
-            setUploadedSymbolPaths(response.data.filePaths);
-        } catch (err) {
-            setSymbolUploadError('Symbol upload failed. Please try again.');
-            console.error(err);
-        } finally {
-            setSymbolLoading(false);
-        }
-    };
-
-
+    // This is the new, single handler for the merged form
+// ... (handleUpload function is unchanged)
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!file || !electionId) {
             setError("Please provide an Election ID and select a CSV file.");
             return;
         }
+        
         setLoading(true);
         setMessage('');
         setError('');
 
         const formData = new FormData();
-        formData.append('file', file);
+        
+        // 1. Append the text fields
         formData.append('electionId', electionId);
         formData.append('electionType', electionType);
+        
+        // 2. Append the single CSV file
+        formData.append('candidatesCsv', file);
+
+        // 3. Append all symbol files (if any are selected)
+        if (symbolFiles && symbolFiles.length > 0) {
+          for (let i = 0; i < symbolFiles.length; i++) {
+            formData.append('symbols', symbolFiles[i]);
+          }
+        }
 
         try {
+            // 4. Send the single request to the merged backend route
             const response = await axios.post(`${apiUrl}/admin/candidates/upload`, formData, {
                 headers: { 
-                    'Content-Type': 'multipart/form-data',
+                    // 'Content-Type': 'multipart/form-data' is set automatically by axios when using FormData
                     'Authorization': adminToken
                 }
             });
-            setMessage(`Upload complete! Added: ${response.data.added}, Failed: ${response.data.failed}`);
+            // Use the more detailed response from the backend
+            setMessage(`Upload complete! Added: ${response.data.added}, Skipped: ${response.data.skipped}, Failed: ${response.data.failed}`);
+            // Clear inputs on success
+            setFile(null);
+            setSymbolFiles(null);
+            e.target.reset(); // Resets the form fields
         } catch (err) {
-            setError('File upload failed. The server responded with an error.');
+            setError(err.response?.data?.error || 'File upload failed. The server responded with an error.');
             console.error(err);
         } finally {
             setLoading(false);
@@ -349,57 +338,80 @@ const CandidatesPage = ({ adminToken }) => {
     };
 
     return (
+// ... (existing code inside CandidatesPage return)
         <div className="space-y-8">
             <h2 className="text-3xl font-bold mb-6">Manage Candidates</h2>
             
-            {/* --- UPDATED: Symbol Upload Section --- */}
+            {/* This is now the ONLY form on the page */}
             <div className="bg-white p-8 rounded-lg shadow-md space-y-6">
-                <h3 className="text-xl font-bold text-gray-800">Step 1: Upload Party Symbols</h3>
-                <form onSubmit={handleSymbolUpload}>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Symbol Images (PNG, JPG)</label>
-                        <input type="file" onChange={e => setSymbolFiles(e.target.files)} accept=".png,.jpg,.jpeg" className="w-full p-2 border border-gray-300 rounded mt-1" required multiple />
-                    </div>
-                    <button type="submit" disabled={symbolLoading} className="w-full bg-gray-600 text-white p-3 font-semibold rounded hover:bg-gray-700 disabled:bg-gray-400 transition-colors">
-                        {symbolLoading ? 'Uploading Symbols...' : 'Upload Symbols'}
-                    </button>
-                    {symbolUploadMessage && <p className="text-green-600 text-center font-semibold">{symbolUploadMessage}</p>}
-                    {symbolUploadError && <p className="text-red-600 text-center font-semibold">{symbolUploadError}</p>}
-                    {uploadedSymbolPaths.length > 0 && (
-                        <div className="mt-4 p-4 bg-gray-100 rounded">
-                            <h4 className="font-semibold text-gray-800">Uploaded Symbol Paths:</h4>
-                            <ul className="list-disc list-inside mt-2 text-sm text-gray-700">
-                                {uploadedSymbolPaths.map(path => <li key={path}>{path}</li>)}
-                            </ul>
-                        </div>
-                    )}
-                </form>
-            </div>
+                <h3 className="text-xl font-bold text-gray-800">Upload Candidates & Symbols</h3>
+                <p className="text-sm text-gray-600">
+                    Upload the candidates CSV and all associated party symbols in a single step.
+                    If a symbol already exists on the server, it will be overwritten.
+                </p>
 
-
-            {/* Existing CSV Upload Section */}
-            <div className="bg-white p-8 rounded-lg shadow-md space-y-6">
-                 <h3 className="text-xl font-bold text-gray-800">Step 2: Upload Candidates CSV</h3>
-                <form onSubmit={handleUpload}>
+                {/* The form now uses the merged handleUpload handler */}
+                <form onSubmit={handleUpload} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Election ID</label>
-                        <input type="number" value={electionId} onChange={e => setElectionId(e.target.value)} placeholder="e.g., 101" className="w-full p-2 border border-gray-300 rounded mt-1" required/>
+                        <input 
+                            type="number" 
+                            value={electionId} 
+                            onChange={e => setElectionId(e.target.value)} 
+                            placeholder="e.g., 101" 
+                            className="w-full p-2 border border-gray-300 rounded mt-1" 
+                            required
+                        />
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700">Election Type</label>
-                        <select value={electionType} onChange={e => setElectionType(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1">
+                        <select 
+                            value={electionType} 
+                            onChange={e => setElectionType(e.target.value)} 
+                            className="w-full p-2 border border-gray-300 rounded mt-1"
+                        >
                             <option value="ac">Assembly (ac)</option>
                             <option value="pc">Parliamentary (pc)</option>
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Candidates CSV File</label>
-                        <input type="file" onChange={e => setFile(e.target.files[0])} accept=".csv" className="w-full p-2 border border-gray-300 rounded mt-1" required />
-                        <p className="text-xs text-gray-500 mt-1">CSV must contain columns: `candidateName`, `party_name`, `symbol` (with the path from Step 1), and either `assemblyId` or `parliamentaryId`.</p>
+                        <input 
+                            type="file" 
+                            name="candidatesCsvInput" // Give a name to reset it
+                            onChange={e => setFile(e.target.files[0])} 
+                            accept=".csv" 
+                            className="w-full p-2 border border-gray-300 rounded mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                            required 
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            CSV must contain `candidateName`, `party_name`, `symbol` (e.g., `party1.png`), and `assemblyId` or `parliamentaryId`.
+                        </p>
                     </div>
-                    <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 font-semibold rounded hover:bg-blue-700 disabled:bg-blue-400 transition-colors">
-                        {loading ? 'Uploading...' : 'Upload Candidates CSV'}
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Party Symbol Images (PNG, JPG)</label>
+                        <input 
+                            type="file" 
+                            name="symbolsInput" // Give a name to reset it
+                            onChange={e => setSymbolFiles(e.target.files)} 
+                            accept=".png,.jpg,.jpeg" 
+                            className="w-full p-2 border border-gray-300 rounded mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                            multiple 
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Upload all symbol image files referenced in your CSV.
+                        </p>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        disabled={loading} 
+                        className="w-full bg-blue-600 text-white p-3 font-semibold rounded hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
+                    >
+                        {loading ? 'Uploading...' : 'Upload Candidates & Symbols'}
                     </button>
+                    
                     {message && <p className="text-green-600 text-center font-semibold">{message}</p>}
                     {error && <p className="text-red-600 text-center font-semibold">{error}</p>}
                 </form>
@@ -408,8 +420,10 @@ const CandidatesPage = ({ adminToken }) => {
     );
 };
 
-const ResultsPage = ({ adminToken }) => {
+// MODIFIED: Added isActive prop
+const ResultsPage = ({ adminToken, isActive }) => {
   const [elections, setElections] = useState([]);
+// ... (rest of state in ResultsPage is unchanged)
   const [selectedElectionId, setSelectedElectionId] = useState('');
   
   const [constituencyId, setConstituencyId] = useState('');
@@ -420,9 +434,11 @@ const ResultsPage = ({ adminToken }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const apiUrl = import.meta.env.VITE_API_URL;
+  const ws = useRef(null); // MODIFIED: Use a ref to store the WebSocket object
 
   useEffect(() => {
     const fetchElections = async () => {
+// ... (existing code inside fetchElections)
       try {
         const response = await axios.get(`${apiUrl}/admin/elections`, {
           headers: { Authorization: adminToken }
@@ -432,10 +448,15 @@ const ResultsPage = ({ adminToken }) => {
         console.error("Failed to fetch elections:", err);
       }
     };
-    if (adminToken) fetchElections();
-  }, [adminToken, apiUrl]);
+    // MODIFIED: Only fetch if this page is active
+    if (adminToken && isActive) {
+        fetchElections();
+    }
+  // MODIFIED: Added isActive to dependency array
+  }, [adminToken, apiUrl, isActive]);
 
   const handleElectionSelect = async (electionId) => {
+// ... (existing code inside handleElectionSelect)
     setSelectedElectionId(electionId);
     setSummary(null);
     setConstituencyResults([]);
@@ -446,6 +467,7 @@ const ResultsPage = ({ adminToken }) => {
     setError('');
 
     try {
+      // ---!! API CALL UPDATED to use fast route !!---
       const response = await axios.get(`${apiUrl}/admin/results/summary/${electionId}`, {
         headers: { Authorization: adminToken }
       });
@@ -459,15 +481,19 @@ const ResultsPage = ({ adminToken }) => {
   };
   
   const handleFetchConstituencyResults = async (e) => {
+// ... (existing code inside handleFetchConstituencyResults)
       e.preventDefault();
       if (!constituencyId) return;
       setLoading(true);
       
       try {
+          // ---!! API CALL UPDATED to use fast route !!---
           const response = await axios.get(`${apiUrl}/admin/results/${selectedElectionId}/${constituencyId}`, {
               headers: { Authorization: adminToken }
           });
-          setConstituencyResults(response.data.results);
+          // Sort results by votes descending
+          const sortedResults = (response.data.results || []).sort((a,b) => b.votes - a.votes);
+          setConstituencyResults(sortedResults);
       } catch (err) {
           setError('Failed to fetch constituency results.');
       } finally {
@@ -475,8 +501,104 @@ const ResultsPage = ({ adminToken }) => {
       }
   };
 
+  // ---!! LIVE UPDATE LOGIC: WebSocket Connection !!---
+  useEffect(() => {
+    // MODIFIED: Connect only if page is active and election is selected
+    if (isActive && selectedElectionId) {
+        // Determine WebSocket protocol (ws vs wss)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        
+        // Use VITE_API_URL to get the backend host, then construct ws URL
+// ... (existing code for wsHost calculation)
+        const apiUrlString = import.meta.env.VITE_API_URL || '';
+        let wsHost = '';
+        
+        if (apiUrlString) {
+            try {
+                // Use URL to reliably parse the host, works for http/https
+                const url = new URL(apiUrlString);
+                wsHost = url.host; // e.g., "api.iballot.com" or "localhost:3000"
+            } catch (e) {
+                // Fallback if VITE_API_URL is relative or invalid
+                wsHost = window.location.host; 
+            }
+        } else {
+            // Fallback if VITE_API_URL is not set
+            wsHost = window.location.host;
+        }
+
+        ws.current = new WebSocket(`${wsProtocol}//${wsHost}`); // MODIFIED: Store in ref
+
+        ws.current.onopen = () => {
+            console.log("WebSocket connected for live results.");
+        };
+
+        ws.current.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'VOTE_UPDATE') {
+                    const { electionId, candidateId } = message.payload;
+
+                    // Update state using the functional form, no dependency on selectedElectionId
+                    setSummary(currentSummary => {
+                        // Check against the summary's election ID
+                        if (currentSummary && Number(electionId) === Number(currentSummary.election.election_id)) {
+                            toast.info("New vote received! Turnout updated.");
+                            return { ...currentSummary, votersVoted: currentSummary.votersVoted + 1 };
+                        }
+                        return currentSummary;
+                    });
+
+                    setConstituencyResults(currentResults => {
+                        const candidateExists = currentResults.some(r => Number(r.id) === Number(candidateId));
+                        if (candidateExists) {
+                            const updatedResults = currentResults.map(r => {
+                                if (Number(r.id) === Number(candidateId)) {
+                                    toast.info(`Vote received for ${r.name}!`);
+                                    return { ...r, votes: r.votes + 1 };
+                                }
+                                return r;
+                            });
+                            return updatedResults.sort((a, b) => b.votes - a.votes);
+                        }
+                        return currentResults;
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to parse WebSocket message:", err);
+            }
+        };
+
+        ws.current.onclose = () => {
+            console.log("WebSocket disconnected.");
+        };
+
+        ws.current.onerror = (error) => {
+            console.error("WebSocket error:", error);
+        };
+
+        // Cleanup function
+        return () => {
+            if (ws.current) {
+                ws.current.close();
+                ws.current = null;
+            }
+        };
+    } else {
+        // If page is not active or no election is selected, ensure WS is closed
+        if (ws.current) {
+            ws.current.close();
+            ws.current = null;
+        }
+    }
+  // MODIFIED: Rerun when page becomes active/inactive or election changes
+  }, [isActive, selectedElectionId]); 
+  // ---!! END LIVE UPDATE LOGIC !!---
+
+
   // --- NEW: Function to handle the tie-breaker ---
   const handleBreakTie = async () => {
+// ... (existing code inside handleBreakTie)
     if (!summary?.tieDetected) return;
     setLoading(true);
     setError('');
@@ -489,11 +611,13 @@ const ResultsPage = ({ adminToken }) => {
         headers: { Authorization: adminToken }
       });
 
-      alert(`Draw of lots complete! The winner is: ${response.data.winningParty.name}`);
+      // Use toast for notification instead of alert
+      toast.success(`Draw of lots complete! The winner is: ${response.data.winningParty.name}`);
       // Refresh the summary to show the final winner
       handleElectionSelect(selectedElectionId);
 
-    } catch (err) {
+    } catch (err)
+ {
       setError('Failed to resolve the tie. Please try again.');
       console.error(err);
     } finally {
@@ -503,6 +627,7 @@ const ResultsPage = ({ adminToken }) => {
 
 
   return (
+// ... (existing code inside ResultsPage return)
     <div>
       <h2 className="text-3xl font-bold mb-6">View Election Results</h2>
       
@@ -607,32 +732,27 @@ const ResultsPage = ({ adminToken }) => {
   );
 };
 
-// ... (rest of the file is unchanged)
+
 // --- Main Admin Dashboard Component ---
 const AdminDashboard = () => {
     const [currentPage, setCurrentPage] = useState('home');
-    const navigate = useNavigate();
+    // const navigate = useNavigate(); // <-- REMOVED
     const adminToken = sessionStorage.getItem('adminToken');
 
     const handleLogout = () => {
         sessionStorage.removeItem('adminToken');
-        navigate('/admin/login');
+        // navigate('/admin/login'); // <-- REPLACED
+        window.location.href = '/admin/login'; // <-- WITH THIS
     };
 
     useEffect(() => {
         if (!adminToken) {
-            navigate('/admin/login');
+            // navigate('/admin/login'); // <-- REPLACED
+            window.location.href = '/admin/login'; // <-- WITH THIS
         }
-    }, [adminToken, navigate]);
+    }, [adminToken]); // <-- Removed navigate from dependency array
 
-    const renderPage = () => {
-        switch (currentPage) {
-            case 'elections': return <ElectionsPage adminToken={adminToken} />;
-            case 'candidates': return <CandidatesPage adminToken={adminToken} />;
-            case 'results': return <ResultsPage adminToken={adminToken} />;
-            default: return <HomePage adminToken={adminToken} />;
-        }
-    };
+    // MODIFIED: Removed the renderPage switch statement
     
     if (!adminToken) {
         return null;
@@ -640,7 +760,19 @@ const AdminDashboard = () => {
 
     return (
         <AdminLayout setCurrentPage={setCurrentPage} handleLogout={handleLogout}>
-            {renderPage()}
+            {/* MODIFIED: Render all pages and use CSS to show/hide them */}
+            <div style={{ display: currentPage === 'home' ? 'block' : 'none' }}>
+                <HomePage adminToken={adminToken} isActive={currentPage === 'home'} />
+            </div>
+            <div style={{ display: currentPage === 'elections' ? 'block' : 'none' }}>
+                <ElectionsPage adminToken={adminToken} isActive={currentPage === 'elections'} />
+            </div>
+            <div style={{ display: currentPage === 'candidates' ? 'block' : 'none' }}>
+                <CandidatesPage adminToken={adminToken} isActive={currentPage ==='candidates'} />
+            </div>
+            <div style={{ display: currentPage === 'results' ? 'block' : 'none' }}>
+                <ResultsPage adminToken={adminToken} isActive={currentPage === 'results'} />
+            </div>
         </AdminLayout>
     );
 };

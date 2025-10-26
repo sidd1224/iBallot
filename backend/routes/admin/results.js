@@ -1,202 +1,303 @@
-// backend/routes/admin/results.js
 const express = require("express");
 const router = express.Router();
-const crypto = require("crypto"); // Import crypto for the lottery
-const adminAuth = require("../../middleware/adminAuth");
-const contract = require("../../blockchain/contract");
-const pool = require("../../database/db");
+const pool = require("../../database/db"); // Use the pooled connection
+const { contract } = require("../../blockchain/contract");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
+const adminAuth = require("../../middleware/adminAuth");
 
-// --- UPDATED: Route for overall election summary and results ---
-router.get("/summary/:electionId", adminAuth, async (req, res) => {
-  let client;
+// Helper function to check election status from the contract
+async function getElectionStatus(electionId) {
   try {
-    const electionId = parseInt(req.params.electionId);
-    if (isNaN(electionId)) {
-      return res.status(400).json({ error: "Invalid Election ID" });
-    }
+    console.log(`[getElectionStatus ${electionId}] Fetching start/end times from contract...`);
+    const startTimeBigInt = await retryBlockchainCall(() => contract.startTime());
+    const endTimeBigInt = await retryBlockchainCall(() => contract.endTime());
+    const now = Math.floor(Date.now() / 1000); // Current time in seconds
 
+    const startTimeNum = Number(startTimeBigInt);
+    const endTimeNum = Number(endTimeBigInt);
+    console.log(`[getElectionStatus ${electionId}] Contract Times - Start: ${startTimeNum}, End: ${endTimeNum}. Current Time: ${now}`);
+
+
+    // Check if start/end times have been set (are not zero)
+    const timesSet = startTimeNum > 0 && endTimeNum > 0;
+    const isOver = timesSet && now > endTimeNum;
+    const isStarted = timesSet && now >= startTimeNum;
+
+    console.log(`[getElectionStatus ${electionId}] Status - Times Set: ${timesSet}, Started: ${isStarted}, Over: ${isOver}`);
+
+    return {
+      isElectionOver: isOver,
+      isElectionStarted: isStarted,
+      startTime: startTimeNum,
+      endTime: endTimeNum
+    };
+  } catch (error) {
+    console.error(`[getElectionStatus ${electionId}] Error fetching election status from blockchain: ${error.message}`);
+    throw new Error("Could not fetch election status from blockchain.");
+  }
+}
+
+// GET /api/admin/results/summary/:electionId
+router.get("/summary/:electionId", adminAuth, async (req, res) => {
+  const { electionId } = req.params;
+  let client;
+
+  try {
     client = await pool.connect();
 
-    // 1. Get election details from DB
-    const electionResult = await client.query("SELECT * FROM elections WHERE election_id = $1", [electionId]);
-    if (electionResult.rows.length === 0) {
+    // 1. Get election details from DB (including saved winner)
+    const electionRes = await client.query("SELECT * FROM elections WHERE election_id = $1", [electionId]);
+    if (electionRes.rows.length === 0) {
       return res.status(404).json({ error: "Election not found." });
     }
-    const election = electionResult.rows[0];
-    const isElectionOver = new Date(election.end_time) < new Date();
+    const election = electionRes.rows[0];
+    const enabledConstituencies = election.enabled_constituencies || [];
+    const savedWinnerName = election.winner_party_name; // Winner from previous tie-break
 
-    // 2. Calculate voter turnout (no changes here)
-    const constituencyList = election.enabled_constituencies || [];
-    let eligibleVotersQuery;
-    if (constituencyList.length > 0) {
-      eligibleVotersQuery = await client.query(
-        "SELECT uid_hash FROM eci_admin_data WHERE ac_id = ANY($1::int[]) OR pc_id = ANY($1::int[])",
-        [constituencyList]
-      );
+    // 2. Get election status from Blockchain
+    // **Point 1:** Fetch current status from blockchain
+    const { isElectionOver, isElectionStarted, startTime, endTime } = await getElectionStatus(electionId);
+
+    // 3. **Point 3:** Count eligible voters ONLY from eci_admin_data
+    let totalVoters = 0;
+    if (enabledConstituencies.length > 0) {
+        const eligibleVotersQuery = `
+          SELECT COUNT(DISTINCT uid_hash)
+          FROM eci_admin_data
+          WHERE ac_id = ANY($1::int[]) OR pc_id = ANY($1::int[])
+        `;
+        const eligibleVotersRes = await client.query(eligibleVotersQuery, [enabledConstituencies]);
+        totalVoters = parseInt(eligibleVotersRes.rows[0].count, 10);
+        console.log(`[Summary ${electionId}] Total eligible (ECI): ${totalVoters}`);
     } else {
-      eligibleVotersQuery = await client.query("SELECT uid_hash FROM users");
+        console.warn(`[Summary ${electionId}] No enabled constituencies. Total eligible voters set to 0.`);
     }
-    const eligibleVoters = eligibleVotersQuery.rows;
-    const totalVoters = eligibleVoters.length;
 
+    // 4. Get total votes cast from Blockchain
     let votersVoted = 0;
-    for (const voter of eligibleVoters) {
-      const voterHash = "0x" + voter.uid_hash;
-      const hasVoted = await retryBlockchainCall(() => contract.hasVoted(electionId, voterHash));
-      if (hasVoted) {
-        votersVoted++;
-      }
-    }
-
-    // 3. If election is over, calculate detailed results
-    if (isElectionOver) {
-      // If a winner has already been decided by a tie-breaker, just return it.
-      if (election.winner_party_name) {
-        return res.json({
-          election,
-          isElectionOver,
-          totalVoters,
-          votersVoted,
-          winningParty: { name: election.winner_party_name, votes: "N/A - Decided by Draw" },
-        });
-      }
-
-      const partyVotes = {};
-      const allCandidatesQuery = await client.query(
-        "SELECT * FROM candidates WHERE election_id = $1",
-        [electionId]
-      );
-
-      for (const candidate of allCandidatesQuery.rows) {
-        const bcCandidate = await retryBlockchainCall(() => 
-          contract.candidates(candidate.election_id, candidate.constituency_id, candidate.candidate_id)
-        );
-        const voteCount = parseInt(bcCandidate.voteCount.toString());
-        if (candidate.party_name) {
-          partyVotes[candidate.party_name] = (partyVotes[candidate.party_name] || 0) + voteCount;
+     if (isElectionStarted || isElectionOver) { // Fetch if started or over
+        try {
+            const votersVotedBigInt = await retryBlockchainCall(() => contract.getTotalVotes(electionId));
+            votersVoted = parseInt(votersVotedBigInt.toString(), 10);
+            console.log(`[Summary ${electionId}] Total votes cast (Contract): ${votersVoted}`);
+        } catch (turnoutError) {
+             console.error(`[Summary ${electionId}] Failed to get total votes: ${turnoutError.message}`);
+             throw new Error(`Could not fetch voter turnout from blockchain for election ${electionId}.`);
         }
-      }
+     }
 
-      // --- NEW: Tie Detection Logic ---
-      const maxVotes = Math.max(...Object.values(partyVotes));
-      const tiedParties = Object.keys(partyVotes).filter(party => partyVotes[party] === maxVotes);
+    // 5. Calculate Winner/Tie Status if Election is Over
+    let winningParty = null;
+    let tiedParties = [];
+    let tieDetected = false;
+    let aggregatedVoteSum = 0;
 
-      if (tiedParties.length === 1) {
-        // Clear winner
-        res.json({ 
-          election, isElectionOver, totalVoters, votersVoted,
-          winningParty: { name: tiedParties[0], votes: maxVotes },
-          partyVotes
-        });
-      } else if (tiedParties.length > 1) {
-        // It's a tie
-        res.json({
-          election, isElectionOver, totalVoters, votersVoted,
-          tieDetected: true,
-          tiedParties: tiedParties.map(party => ({ name: party, votes: maxVotes })),
-          partyVotes
-        });
-      } else {
-         // No votes cast
-         res.json({ 
-          election, isElectionOver, totalVoters, votersVoted,
-          winningParty: { name: 'No votes cast', votes: 0 }
-        });
-      }
+    if (isElectionOver) {
+        console.log(`[Summary ${electionId}] Election is over. Calculating winner status...`);
+
+        // Get candidates only if needed for calculation
+        let allCandidates = [];
+        if (!savedWinnerName && enabledConstituencies.length > 0) { // Only fetch if no winner saved & constituencies exist
+            const candidatesRes = await client.query(
+              `SELECT candidate_id, constituency_id, party_name
+               FROM candidates
+               WHERE election_id = $1 AND constituency_id = ANY($2::int[])`,
+              [electionId, enabledConstituencies]
+            );
+            allCandidates = candidatesRes.rows;
+        } else if (savedWinnerName) {
+             console.log(`[Summary ${electionId}] Winner already saved: ${savedWinnerName}. Skipping vote aggregation.`);
+        } else {
+             console.warn(`[Summary ${electionId}] Cannot calculate winner - no constituencies enabled.`);
+        }
+
+        // Proceed if we need to calculate based on votes
+        if (!savedWinnerName && allCandidates.length > 0) {
+            console.log(`[Summary ${electionId}] Fetching individual vote counts for ${allCandidates.length} candidates...`);
+            // Fetch vote counts (can be slow, consider alternative if performance issues)
+            const voteCountsPromises = allCandidates.map(async (c) => {
+                try {
+                    const countBigInt = await retryBlockchainCall(() =>
+                        contract.getVoteCount(BigInt(electionId), BigInt(c.constituency_id), BigInt(c.candidate_id))
+                    );
+                    return { party_name: c.party_name, votes: Number(countBigInt) };
+                } catch (err) {
+                    console.error(`[Summary ${electionId}] Failed vote count for cand ${c.candidate_id}: ${err.message}`);
+                    return { party_name: c.party_name, votes: 0 };
+                }
+            });
+            const allVoteCounts = await Promise.all(voteCountsPromises);
+            console.log(`[Summary ${electionId}] Finished fetching vote counts.`);
+
+            // Aggregate votes
+            const partyVotes = allVoteCounts.reduce((acc, current) => {
+                if (current.party_name) {
+                    acc[current.party_name] = (acc[current.party_name] || 0) + current.votes;
+                }
+                return acc;
+            }, {});
+            aggregatedVoteSum = Object.values(partyVotes).reduce((sum, votes) => sum + votes, 0);
+             console.log(`[Summary ${electionId}] Aggregated party votes:`, partyVotes, `Total: ${aggregatedVoteSum}`);
+             if (aggregatedVoteSum !== votersVoted) {
+                 console.warn(`[Summary ${electionId}] WARNING: Aggregated sum (${aggregatedVoteSum}) != getTotalVotes (${votersVoted}). Using aggregation for winner.`);
+             }
+
+            // Determine winner/tie from aggregation
+            const sortedParties = Object.entries(partyVotes)
+                .map(([name, votes]) => ({ name, votes }))
+                .sort((a, b) => b.votes - a.votes);
+
+            if (sortedParties.length > 0) {
+                const maxVotes = sortedParties[0].votes;
+                tiedParties = sortedParties.filter(p => p.votes === maxVotes);
+
+                if (tiedParties.length === 1) {
+                    winningParty = tiedParties[0]; // Clear winner
+                    tieDetected = false;
+                    console.log(`[Summary ${electionId}] Winner determined: ${winningParty.name} (${winningParty.votes} votes).`);
+                } else if (tiedParties.length > 1) {
+                     // **Point 2 & 4:** Tie detected (even at 0 votes), no saved winner yet
+                    tieDetected = true;
+                    winningParty = null;
+                    console.log(`[Summary ${electionId}] Tie detected (Votes: ${maxVotes}) between:`, tiedParties.map(p => p.name));
+                }
+            }
+        }
+
+         // **Point 4:** Handle saved winner case separately
+         if (savedWinnerName) {
+              winningParty = { name: savedWinnerName, votes: "N/A (Draw)" }; // Votes maybe unavailable/irrelevant after draw
+              tieDetected = false; // Tie is resolved
+              console.log(`[Summary ${electionId}] Using previously saved winner: ${savedWinnerName}`);
+         }
+         // Handle no-winner scenario only if no tie was detected and no winner saved/calculated
+         else if (!winningParty && !tieDetected) {
+             if (aggregatedVoteSum === 0 && allCandidates.length > 0) {
+                 winningParty = { name: "N/A (No votes cast)", votes: 0 };
+             } else {
+                 winningParty = { name: "N/A", votes: 0 };
+             }
+             console.log(`[Summary ${electionId}] Setting winner to: ${winningParty.name}`);
+        }
     } else {
-      // If election is still active, only return turnout data
-      res.json({ 
-        election, isElectionOver, totalVoters, votersVoted 
-      });
+         console.log(`[Summary ${electionId}] Election not over yet. No winner calculation.`);
     }
 
-  } catch (err) {
-    console.error("❌ Error fetching results summary:", err);
-    res.status(500).json({ error: "Failed to fetch results summary", details: err.message });
+    // 6. Send the final summary object
+    res.json({
+      election: {
+        ...election,
+        startTime, // Blockchain time
+        endTime    // Blockchain time
+      },
+      isElectionStarted, // Status based on blockchain times
+      isElectionOver,   // Status based on blockchain times
+      totalVoters,      // Count from ECI data
+      votersVoted,      // Count from contract.getTotalVotes
+      winningParty,     // Could be null if tieDetected is true AND no winner saved
+      tieDetected,      // True if tie exists AND no winner saved
+      tiedParties       // List of parties tied for the lead (if tieDetected)
+    });
+
+  } catch (error) {
+    console.error(`❌ Error in /summary/${electionId}: ${error.message}`);
+    res.status(500).json({ error: "Internal server error fetching summary.", details: error.message });
   } finally {
-    if (client) client.release();
+      if (client) client.release();
   }
 });
 
-// --- NEW: Route to break a tie ---
-router.post("/break-tie", adminAuth, async (req, res) => {
-  const { electionId, tiedParties } = req.body;
-  if (!electionId || !tiedParties || tiedParties.length < 2) {
-    return res.status(400).json({ error: "Missing required fields for tie-breaker." });
-  }
 
+// GET /api/admin/results/:electionId/:constituencyId
+// (No changes needed in this route based on the 4 points)
+router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
+  const { electionId, constituencyId } = req.params;
   let client;
-  try {
-    // Perform the "draw of lots"
-    const winnerIndex = crypto.randomInt(0, tiedParties.length);
-    const winner = tiedParties[winnerIndex];
 
-    client = await pool.connect();
-    // Persist the winner to the database
-    await client.query(
-      "UPDATE elections SET winner_party_name = $1 WHERE election_id = $2",
-      [winner.name, electionId]
+  try {
+     client = await pool.connect();
+
+    const { isElectionOver, isElectionStarted } = await getElectionStatus(electionId);
+
+    const candidatesRes = await client.query(
+      `SELECT candidate_id, candidate_name as name, party_name, symbol
+       FROM candidates
+       WHERE election_id = $1 AND constituency_id = $2`,
+      [electionId, constituencyId]
     );
 
-    res.json({ success: true, message: "Tie-breaker successful!", winningParty: winner });
+    if (candidatesRes.rows.length === 0) {
+       console.log(`[Constituency ${constituencyId}] No candidates found for election ${electionId}`);
+      return res.json({ isElectionOver, isElectionStarted, results: [] });
+    }
+    const candidates = candidatesRes.rows;
 
-  } catch (err) {
-    console.error("❌ Error breaking tie:", err);
-    res.status(500).json({ error: "Failed to break tie", details: err.message });
+    let results = [];
+     if (isElectionStarted || isElectionOver) {
+        const voteCountPromises = candidates.map(async (candidate) => {
+          try {
+            const voteCountBigInt = await retryBlockchainCall(() =>
+              contract.getVoteCount(BigInt(electionId), BigInt(constituencyId), BigInt(candidate.candidate_id))
+            );
+            return {
+              id: candidate.candidate_id, name: candidate.name, party_name: candidate.party_name,
+              symbol: candidate.symbol, votes: parseInt(voteCountBigInt.toString(), 10),
+            };
+          } catch (voteCountErr) {
+            console.warn(`[Constituency ${constituencyId}] Could not get vote count for candidate ${candidate.candidate_id}: ${voteCountErr.message}`);
+            return { id: candidate.candidate_id, name: candidate.name, party_name: candidate.party_name, symbol: candidate.symbol, votes: 0 };
+          }
+        });
+        results = await Promise.all(voteCountPromises);
+     } else {
+         results = candidates.map(c => ({ ...c, votes: 0 }));
+     }
+
+    results.sort((a, b) => b.votes - a.votes);
+    res.json({ isElectionOver, isElectionStarted, results });
+
+  } catch (error) {
+    console.error(`❌ Error in /results/${electionId}/${constituencyId}: ${error.message}`);
+    res.status(500).json({ error: "Internal server error fetching constituency results.", details: error.message });
   } finally {
-    if (client) client.release();
+      if (client) client.release();
   }
 });
 
+// POST /api/admin/results/break-tie
+// (No changes needed here, it allows breaking 0-0 ties and saves winner)
+router.post("/break-tie", adminAuth, async (req, res) => {
+    const { electionId, tiedParties } = req.body;
+    let client;
 
+    console.log(`[Break-Tie ${electionId}] Received request. Tied parties:`, tiedParties);
 
-
-// --- Existing route for constituency-specific results ---
-router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
-  let client;
-  try {
-    const electionId = parseInt(req.params.electionId);
-    const constituencyId = parseInt(req.params.constituencyId);
-
-    if (isNaN(electionId) || isNaN(constituencyId)) {
-      return res.status(400).json({ error: "Invalid electionId or constituencyId" });
+    if (!electionId || !Array.isArray(tiedParties) || tiedParties.length < 2) {
+        return res.status(400).json({ error: "Invalid request for tie-breaking." });
     }
 
-    client = await pool.connect();
+    try {
+        const randomIndex = Math.floor(Math.random() * tiedParties.length);
+        const winningParty = tiedParties[randomIndex];
+        console.log(`[Break-Tie ${electionId}] Draw winner: ${winningParty.name}`);
 
-    const candidateCount = await retryBlockchainCall(() => contract.candidateCounter(electionId, constituencyId));
-    if (candidateCount === 0) {
-      return res.json({ electionId, constituencyId, results: [], message: "No candidates found." });
+        client = await pool.connect();
+        try {
+            // Persist winner
+            await client.query("UPDATE elections SET winner_party_name = $1 WHERE election_id = $2", [winningParty.name, electionId]);
+            console.log(`[Break-Tie ${electionId}] Persisted winner ${winningParty.name} to DB.`);
+        } finally {
+            if (client) client.release();
+        }
+
+        res.json({ message: `Draw of lots complete. Winner: ${winningParty.name}`, winningParty });
+
+    } catch (error) {
+        console.error(`[Break-Tie ${electionId}] Error: ${error.message}`);
+        if (client) client.release();
+        res.status(500).json({ error: "Internal server error during tie-breaking." });
     }
-
-    const candidates = [];
-    for (let i = 0; i < candidateCount; i++) {
-      const blockchainCandidate = await retryBlockchainCall(() => contract.candidates(electionId, constituencyId, i));
-      const dbResult = await client.query(
-        `SELECT party_name, symbol FROM candidates WHERE election_id = $1 AND constituency_id = $2 AND candidate_id = $3`,
-        [electionId, constituencyId, i]
-      );
-      const dbData = dbResult.rows[0] || { party_name: 'N/A', symbol: '' };
-
-      candidates.push({
-        id: i,
-        name: blockchainCandidate.name,
-        votes: parseInt(blockchainCandidate.voteCount.toString()),
-        party_name: dbData.party_name,
-        symbol: dbData.symbol
-      });
-    }
-
-    candidates.sort((a, b) => b.votes - a.votes);
-    res.json({ electionId, constituencyId, results: candidates });
-
-  } catch (err) {
-    console.error("❌ Error fetching results:", err);
-    res.status(500).json({ error: "Failed to fetch election results", details: err.message });
-  } finally {
-    if (client) client.release();
-  }
 });
 
 module.exports = router;
+

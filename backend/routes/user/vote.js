@@ -2,9 +2,16 @@ const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-const { JsonRpcProvider, Wallet, ethers } = require("ethers");
+// --- REMOVE JsonRpcProvider and ethers ---
+// const { JsonRpcProvider, Wallet, ethers } = require("ethers");
+const { Wallet, ethers } = require("ethers"); // Keep ethers for utility functions
 
-const contract = require("../../blockchain/contract");
+// --- FIX: Import the whole module ---
+// const contract = require("../../blockchain/contract");
+const blockchain = require("../../blockchain/contract");
+const contract = blockchain.contract; // Use the exported contract instance
+// --- END FIX ---
+
 const pool = require("../../database/db");
 const { decrypt } = require("../../utils/aesUtils");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
@@ -19,7 +26,7 @@ router.post("/", async (req, res) => {
     if (!username || !password || electionId === undefined || candidateId === undefined) {
       return res.status(400).json({ error: "Missing required fields for voting." });
     }
-    
+
     client = await pool.connect();
 
     // Authenticate user
@@ -65,47 +72,75 @@ router.post("/", async (req, res) => {
     }
 
     if (!constituencyId) {
-        return res.status(400).json({ error: "User is not eligible for this type of election." });
+        return res.status(400).json({ error: "User is not eligible for this type of election based on constituency." });
     }
 
     const voterHash = "0x" + user.uid_hash;
 
     // Decrypt the user's private key to sign the transaction
     const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
-    
+
     // --- CORRECTED LOGIC ---
     // The decrypt function returns a Buffer, which must be converted to a string.
     const decryptedKeyBuffer = decrypt(eciData.enc_private_key, secretKey);
-    const privateKey = decryptedKeyBuffer.toString('utf8');
+    const privateKey = decryptedKeyBuffer.toString('utf8'); // Ensure correct encoding
+    // Validate the private key format before creating the wallet
+     if (!privateKey || !privateKey.startsWith('0x') || privateKey.length !== 66) {
+        console.error(`❌ Invalid decrypted private key format for user ${username}. Length: ${privateKey?.length}`);
+        return res.status(500).json({ success: false, error: "Internal error: Failed to retrieve voter credentials." });
+     }
     const voterWallet = new Wallet(privateKey);
     // --- END CORRECTION ---
 
-    // Set up the relayer wallet that will pay for the gas
-    const provider = new JsonRpcProvider(process.env.RPC_URL);
-    const relayer = new Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
-    const signer = contract.connect(relayer);
+    // --- REMOVED Unnecessary provider/relayer/signer creation ---
+    // const provider = new JsonRpcProvider(process.env.RPC_URL);
+    // const relayer = new Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
+    // const signer = contract.connect(relayer);
+    // --- END REMOVED ---
 
-    const nonce = await retryBlockchainCall(() => signer.getNonce(electionId, voterHash));
+    // --- FIX: Use the imported 'contract' object directly ---
+    const nonce = await retryBlockchainCall(() => contract.getNonce(electionId, voterHash));
+    // --- END FIX ---
+
     const deadline = Math.floor(Date.now() / 1000) + 600; // Signature is valid for 10 minutes
 
     // The message hash must match the one in the smart contract EXACTLY
+     // Using solidityPackedKeccak256 requires careful type handling
     const messageHash = ethers.solidityPackedKeccak256(
       ["uint256", "bytes32", "uint256", "uint256", "uint256", "uint256"],
-      [electionId, voterHash, candidateId, constituencyId, nonce, deadline]
+      [
+          BigInt(electionId),       // Ensure uint256
+          voterHash,                // bytes32
+          BigInt(candidateId),      // Ensure uint256
+          BigInt(constituencyId),   // Ensure uint256
+          nonce,                    // Already BigInt from contract
+          BigInt(deadline)          // Ensure uint256
+      ]
     );
 
-    const signature = await voterWallet.signMessage(ethers.getBytes(messageHash));
+    // Sign the EIP-191 prefixed hash (this is what .toEthSignedMessageHash does)
+    const messageBytes = ethers.getBytes(messageHash);
+    const signature = await voterWallet.signMessage(messageBytes);
+    console.log(`[Vote Route] Generated signature for voter ${username}`);
 
-    // The relayer calls the meta-transaction function
-    const tx = await retryBlockchainCall(() => signer.castVoteMeta(
-      electionId,
+    // --- FIX: Use the imported 'contract' object directly ---
+    // The relayer (the signer attached to 'contract' in contract.js) calls the meta-transaction function
+    console.log(`[Vote Route] Relayer calling castVoteMeta with ElectionID: ${electionId}, VoterHash: ${voterHash}, CandidateID: ${candidateId}, ConstituencyID: ${constituencyId}, Nonce: ${nonce}, Deadline: ${deadline}`);
+    const tx = await retryBlockchainCall(() => contract.castVoteMeta(
+      BigInt(electionId),
       voterHash,
-      candidateId,
-      constituencyId,
-      deadline,
+      BigInt(candidateId),
+      BigInt(constituencyId),
+      BigInt(deadline),
       signature
     ));
-    await retryBlockchainCall(() => tx.wait());
+    // --- END FIX ---
+     console.log(`[Vote Route] Transaction submitted: ${tx.hash}`);
+
+    // Wait for transaction confirmation
+    const receipt = await retryBlockchainCall(() => tx.wait());
+    console.log(`[Vote Route] Transaction confirmed. Block: ${receipt.blockNumber}`);
+
 
     res.status(200).json({
       success: true,
@@ -115,11 +150,11 @@ router.post("/", async (req, res) => {
 
   } catch (err) {
     console.error("❌ Vote Casting Error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    // Provide a more generic error to the user
+    res.status(500).json({ success: false, error: "Failed to cast vote due to an internal server error." });
   } finally {
     if (client) client.release();
   }
 });
 
 module.exports = router;
-
