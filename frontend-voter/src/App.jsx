@@ -1,44 +1,47 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { VerificationProvider } from './context/VerificationContext';
 
-// Import the page components
-import Login from './pages/user/Login';
-import Register from './pages/user/Register';
-import DigilockerVerify from './pages/user/DigilockerVerify';
-import { VerificationProvider } from './context/VerificationContext.jsx'; // <-- import context
-import Dashboard from './pages/user/Dashboard';
-import CandidateList from './pages/user/CandidateList';
-import AdminDashboard from './pages/admin/adminDashboard';
-import AdminLogin from './pages/admin/adminLogin';
+// Lazy load user pages
+const Login = React.lazy(() => import('./pages/user/Login'));
+const Register = React.lazy(() => import('./pages/user/Register'));
+const Dashboard = React.lazy(() => import('./pages/user/Dashboard'));
+const DigilockerVerify = React.lazy(() => import('./pages/user/DigilockerVerify'));
+const CandidateList = React.lazy(() => import('./pages/user/CandidateList'));
+
+// --- ADMIN IMPORTS ARE REMOVED ---
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex justify-center items-center h-screen bg-gray-100">
+    <div className="text-xl font-semibold">Loading...</div>
+  </div>
+);
 
 function App() {
   return (
-    <VerificationProvider> {/* <-- Wrap your app with provider */}
-      <BrowserRouter>
-        <Routes>
-          {/* --- Main Routes --- */}
-          <Route path="/" element={<Navigate to="/login" />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+    <VerificationProvider>
+      <Router>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* --- VOTER ROUTES --- */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/verify/digilocker" element={<DigilockerVerify />} />
+            <Route path="/candidates" element={<CandidateList />} />
 
-          <Route path="/admin" element={<Navigate to="/admin/login" />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            {/* Default route redirects to login */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* --- Voting Flow --- */}
-          {/* 2. Add the new route with its parameters */}
-          <Route path="/candidates/:electionId/:assemblyId" element={<CandidateList />} />
-
-          {/* --- Registration Flow Routes --- */}
-          <Route path="/register" element={<Register />} />
-          <Route path="/digilocker/verify" element={<DigilockerVerify />} />
-          
-          {/* Catch-all route */}
-          <Route path="*" element={<h1>404 - Page Not Found</h1>} />
-        </Routes>
-      </BrowserRouter>
+            {/* All other routes (including any potential admin paths mistakenly typed) redirect to login */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
+      </Router>
     </VerificationProvider>
   );
 }
 
 export default App;
+
