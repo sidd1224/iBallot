@@ -1,37 +1,36 @@
 # --- Stage 1: Build ---
-# Use the official Node 18 image as a builder
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package*.json ./
-# Use npm ci (clean install) for production builds
 RUN npm ci
 
-# Copy the rest of the source code
 COPY . .
 
-# Set the build-time argument for the API URL
-# This will be passed in during the 'gcloud builds submit' or 'docker build' command
+# VITE_API_URL must be passed in during the Cloud Build step
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# Run the production build
 RUN npm run build
 
 # --- Stage 2: Serve ---
-# Use a lightweight Nginx server
 FROM nginx:stable-alpine
 
-# Copy the built static files from the 'build' stage
+# Install 'gettext' which provides 'envsubst' to substitute env variables
+RUN apk add --no-cache gettext
+
+# Copy the built app from the 'build' stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy our custom Nginx config to handle React Router
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the Nginx config *template*
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
 
-# Expose port 80 (Nginx default)
-EXPOSE 80
+EXPOSE 8080
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run a startup script:
+# 1. 'envsubst' reads the template, substitutes ${PORT} with the env variable,
+#    and outputs the result to the real config file.
+# 2. 'nginx' starts in the foreground.
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+
