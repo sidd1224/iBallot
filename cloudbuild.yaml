@@ -28,4 +28,4 @@ images:
 # This defines the variable you must provide when you deploy in Cloud Run.
 # You can set a default, but it's best to provide it in the UI.
 substitutions:
-  _VITE_API_URL: 'https://your-backend-url.a.run.app' # Set a default or provide during deploy
+  _VITE_API_URL: '	https://iballot-backend-715732606815.asia-south1.run.app' # Set a default or provide during deploy
