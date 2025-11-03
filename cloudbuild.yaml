@@ -1,0 +1,31 @@
+# This file should be placed in the ROOT of your GitHub repository (e.g., in sidd1224/iballot/iBallot-temp/).
+# This configuration tells Cloud Build how to build your frontend-voter service.
+
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+  # This step builds your frontend-voter Docker image
+  - 'build'
+  
+  # This tag is automatically used by Cloud Run to identify your new image.
+  - '-t'
+  - 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$COMMIT_SHA'
+  
+  # --- THIS IS THE FIX ---
+  # This line takes the build variable and passes it to your Dockerfile.
+  - '--build-arg'
+  - 'VITE_API_URL=$_VITE_API_URL'
+  
+  # This tells Docker where your Dockerfile and code are located.
+  - './frontend-voter' # The "context" or folder to build from
+  - '-f'
+  - './frontend-voter/Dockerfile' # The path to the Dockerfile
+
+# This pushes the newly built image to the Google Container Registry.
+images:
+- 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$COMMIT_SHA'
+
+# This defines the variable you must provide when you deploy in Cloud Run.
+# You can set a default, but it's best to provide it in the UI.
+substitutions:
+  _VITE_API_URL: 'https://your-backend-url.a.run.app' # Set a default or provide during deploy

@@ -1,5 +1,5 @@
 # --- Stage 1: Build ---
-# ---!! FIX: Use Node 20 to match your dependencies !!---
+# Use Node 20
 FROM node:20-alpine AS build
 
 WORKDIR /app
@@ -25,6 +25,11 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy the Nginx config to handle React Router
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
+# Expose port 80 (Cloud Run will map this)
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+
+# --- FIXED CMD ---
+# This command processes the .template file (which is needed for React Router)
+# and then starts the Nginx server.
+CMD ["/bin/sh", "-c", "envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
 
