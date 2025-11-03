@@ -1,19 +1,34 @@
-import React, { createContext, useState, useContext } from "react";
+import React, { createContext, useContext, useState } from 'react';
 
 const VerificationContext = createContext();
 
+export const useVerification = () => useContext(VerificationContext);
+
 export const VerificationProvider = ({ children }) => {
-  const [username, setUsername] = useState("");         // stores current username
-  const [isVerified, setIsVerified] = useState(false);  // stores Digilocker verification state
-  const [verificationData, setVerificationData] = useState(null); // stores Digilocker data
+  // --- STATE TO SHARE ACROSS PAGES ---
+  const [username, setUsername] = useState(''); // This is the Aadhaar number
+  const [password, setPassword] = useState(''); // The user's new password
+  const [phoneNumber, setPhoneNumber] = useState(''); // The phone number
+  
+  // This will hold the full data from Digilocker (uid, dob, etc.)
+  const [verificationData, setVerificationData] = useState(null); 
+  
+  // This is the "green tick" status
+  const [isVerified, setIsVerified] = useState(false); 
+  // --- END STATE ---
+
+  const value = {
+    username, setUsername,
+    password, setPassword,
+    phoneNumber, setPhoneNumber,
+    verificationData, setVerificationData,
+    isVerified, setIsVerified
+  };
 
   return (
-    <VerificationContext.Provider
-      value={{ username, setUsername, isVerified, setIsVerified, verificationData, setVerificationData }}
-    >
+    <VerificationContext.Provider value={value}>
       {children}
     </VerificationContext.Provider>
   );
 };
 
-export const useVerification = () => useContext(VerificationContext);

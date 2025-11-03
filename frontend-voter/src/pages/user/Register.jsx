@@ -1,273 +1,190 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useVerification } from '../../context/VerificationContext';
+import BrandLogo from '../../components/BrandLogo';
 import axios from 'axios';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { useVerification } from '../../context/VerificationContext.jsx';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-/**
- * Register Component
- * First step: username + Digilocker verification
- * Second step: password + complete registration
- */
-function Register() {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+const Register = () => {
+  const {
+    username, setUsername,
+    password, setPassword,
+    phoneNumber, // Get phone from context (set by other page)
+    verificationData, // Get Digilocker data from context
+    isVerified // Get the "green tick" status
+  } = useVerification();
+  
+  // This state is only for this page
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
-
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
+  const apiUrl = import.meta.env.VITE_API_URL;
 
-  // Use context for username and verification
- const { username, setUsername, isVerified, setIsVerified, verificationData, setVerificationData } = useVerification();
-
-
-  // -------------------- UPDATE --------------------
-  // Populate username and verified status on return from Digilocker
-  useEffect(() => {
-  if (location.state?.digilockerVerified && location.state?.verificationData) {
-    // Set username if empty
-    if (!username) setUsername(location.state?.username || '');
-    // Mark user as verified
-    setIsVerified(true);
-
-    // Keep verificationData in context for backend, but do NOT display it in UI
-    setVerificationData(location.state.verificationData);
-  }
-}, [location.state]);
-
-  // -------------------- END UPDATE --------------------
-
-  /**
-   * Redirect to Digilocker verification page
-   */
-  const handleVerifyViaDigilocker = (e) => {
+  // Final registration submit
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (!username) {
-      setError('Please enter your username first.');
-      return;
-    }
-    const returnUrl = encodeURIComponent('/register');
-    navigate(
-      `/digilocker/verify?returnUrl=${returnUrl}&username=${encodeURIComponent(username)}`
-    );
-  };
-
-  /**
-   * Complete registration after verification
-   */
-/**
-   * Complete registration after verification
-   */
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+    setError('');
 
     if (!isVerified) {
-      setError('Please verify via Digilocker first.');
+      setError('Please verify your identity via Digilocker first.');
       return;
     }
-
-    if (!password) {
-      setError('Please enter your password.');
+    
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
+    }
+    
+    // This check is correct for your flow
+    if (!username || !password || !phoneNumber || !verificationData) {
+        setError("Missing verification data. Please try the verification process again.");
+        return;
     }
 
     setLoading(true);
-    setError('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      const response = await axios.post(`${apiUrl}/register`, {
-        username,
+      // This payload is correct for your flow
+      const registrationData = {
+        username, // The unique username
         password,
-        phoneNumber: verificationData.phoneNumber, // backend gets it
-      });
+        phoneNumber,
+        digilockerData: verificationData // The data we got from the verify page
+      };
 
-      setSuccess(response.data.message);
-      
-      // --- UPDATED: Reset state after a delay, then navigate ---
-      setTimeout(() => {
-        // Clear the shared verification context for a clean state next time
-        setUsername('');
-        setIsVerified(false);
-        setVerificationData(null);
-        
-        // Navigate to the login page
-        navigate('/login');
-      }, 3000);
+      // CHANGED: Endpoint now matches register.js
+      const response = await axios.post(`${apiUrl}/register`, registrationData);
 
-    } catch (err) {
-      // --- UPDATED: Better error handling for validation ---
-      if (err.response?.data?.errors) {
-        // If the backend sends specific validation errors, display them.
-        const errorMessages = err.response.data.errors.map(e => e.msg).join(' ');
-        setError(errorMessages);
+      if (response.data.message) { // Use message for success
+        toast.success("Registration successful! Redirecting to login...");
+        setTimeout(() => navigate('/login'), 2000);
       } else {
-        const errorMessage =
-          err.response?.data?.error || 'An unexpected error occurred. Please try again.';
-        setError(errorMessage);
+         setError(response.data.error || 'Registration failed.');
+         toast.error(response.data.error || 'Registration failed.');
       }
+    } catch (err) {
+      // CHECK FOR VALIDATION ERRORS FIRST
+      if (err.response?.data?.errors) {
+        // Get the first error message from the backend's array
+        const firstError = err.response.data.errors[0].msg;
+        setError(`Registration failed: ${firstError}`);
+        toast.error(`Registration failed: ${firstError}`);
+      
+      } else {
+        // FALLBACK for other types of errors
+        const errMsg = err.response?.data?.error || err.message || 'An error occurred.';
+        setError(`Registration failed: ${errMsg}`);
+        toast.error(`Registration failed: ${errMsg}`);
+      }
+      console.error("Registration error:", err); // Keep this
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-      <div className="bg-white/95 backdrop-blur-sm shadow-2xl rounded-2xl w-full max-w-md p-8 space-y-6 transform transition-all hover:scale-[1.01]">
-        {/* Header */}
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-800">Create Your Account</h2>
-          <p className="text-sm text-gray-500 mt-2">Step 1 of 2: Verify via Digilocker</p>
-        </div>
-
-        {/* Username Input */}
-        <form onSubmit={handleVerifyViaDigilocker} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoComplete="username"
-              placeholder="Choose a unique username"
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition"
-            />
-          </div>
-
-          {/* Verification Button / Status */}
-          {isVerified ? (
-            <div className="flex items-center justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 transition-colors">
-              ✅ Verified via Digilocker
-            </div>
-          ) : (
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
-            >
-              Verify via Digilocker
-            </button>
-          )}
-        </form>
-
-        {/* Registration Form */}
-        {isVerified && (
-          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                placeholder="••••••••"
-                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-red-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
+    <>
+      <ToastContainer position="top-right" autoClose={3000} />
+      {/* CHANGED: Reduced vertical padding on mobile (py-6) 
+        and kept it larger for screens 'sm' and up (sm:py-12)
+      */}
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8">
+          <BrandLogo />
+          
+          {/* CHANGED: Reduced padding (p-6) and shadow on mobile.
+            Kept larger padding (sm:p-8) and shadow for 'sm' and up.
+          */}
+          <div className="bg-white p-6 sm:p-8 shadow-md sm:shadow-xl rounded-lg">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 mb-6">
+              Create Account
+            </h2>
+            {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+            
+            <form className="space-y-6" onSubmit={handleRegister}>
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Enter a unique username"
+                  disabled={loading || isVerified} // This is correct
+                />
               </div>
-            )}
 
-            {success && (
-              <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-green-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">{success}</p>
-                    <p className="text-sm text-green-600 mt-1">Redirecting to login...</p>
-                  </div>
-                </div>
+              <div>
+                <label htmlFor="password">Create Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Create a strong password"
+                  disabled={loading}
+                />
               </div>
-            )}
+              
+              <div>
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  required
+                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Confirm your password"
+                  disabled={loading}
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading || success}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Registering...
-                </span>
+              {/* --- CONDITIONAL VERIFICATION BUTTON --- */}
+              {!isVerified ? (
+                <Link
+                  to="/verify/digilocker"
+                  className={`mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${loading ? 'bg-gray-400' : ''}`}
+                  aria-disabled={loading}
+                  onClick={(e) => loading && e.preventDefault()} // Prevent navigation if loading
+                >
+                  Verify via Digilocker
+                </Link>
               ) : (
-                'Complete Registration'
+                <div className="mt-4 w-full flex justify-center py-2 px-4 border border-green-500 rounded-md shadow-sm text-sm font-medium text-green-700 bg-green-100">
+                  Verified ✔
+                </div>
               )}
-            </button>
-          </form>
-        )}
+              {/* --- END CONDITIONAL BUTTON --- */}
+              
+              <button
+                type="submit"
+                disabled={loading || !isVerified} // Disable until verified
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-gray-400"
+              >
+                {loading ? 'Registering...' : 'Register'}
+              </button>
+            </form>
 
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Already have an account?{' '}
-          <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-            Login here
-          </Link>
-        </p>
+            <p className="mt-6 text-center text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+                Log in here
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
-}
+};
 
 export default Register;
