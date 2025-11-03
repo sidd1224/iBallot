@@ -46,6 +46,6 @@ export default defineConfig({
   ],
   server: {
     host: true, // Allow access from outside the container
-    port: 3000, // Match the port exposed in docker-compose.yml
+    port: 3001, // Match the port exposed in docker-compose.yml
   },
 })
