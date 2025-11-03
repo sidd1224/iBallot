@@ -1,5 +1,5 @@
 server {
-  listen 8080;
+  listen ${PORT};
 
   # Default root directory (Vite build output)
   root /usr/share/nginx/html;
