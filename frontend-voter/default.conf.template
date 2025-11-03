@@ -1,5 +1,5 @@
 server {
-    listen 8080;
+    listen ${PORT};
     server_name _;
 
     root /usr/share/nginx/html;
@@ -9,7 +9,7 @@ server {
         try_files $uri /index.html;
     }
 
-    # Prevent caching for PWA files
+    # Service worker and manifest should not be cached aggressively
     location /sw.js {
         add_header Cache-Control "no-cache";
     }
