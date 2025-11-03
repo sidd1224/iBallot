@@ -23,7 +23,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await axios.post(`${apiUrl}/api/login`, {
+      const response = await axios.post(`${apiUrl}/login`, {
         username,
         password,
       });
@@ -75,7 +75,7 @@ const Login = () => {
                   onChange={(e) => setUsername(e.target.value)} // Use context setter
                   required
                   className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter your 12-digit Aadhaar"
+                  placeholder="Enter your username"
                   disabled={loading}
                 />
               </div>

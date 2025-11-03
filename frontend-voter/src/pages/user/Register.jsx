@@ -37,6 +37,7 @@ const Register = () => {
       return;
     }
     
+    // This check is correct for your flow
     if (!username || !password || !phoneNumber || !verificationData) {
         setError("Missing verification data. Please try the verification process again.");
         return;
@@ -45,14 +46,16 @@ const Register = () => {
     setLoading(true);
 
     try {
+      // This payload is correct for your flow
       const registrationData = {
-        username, // Aadhaar
+        username, // The unique username
         password,
         phoneNumber,
         digilockerData: verificationData // The data we got from the verify page
       };
 
-      const response = await axios.post(`${apiUrl}/api/register`, registrationData);
+      // CHANGED: Endpoint now matches register.js
+      const response = await axios.post(`${apiUrl}/register`, registrationData);
 
       if (response.data.message) { // Use message for success
         toast.success("Registration successful! Redirecting to login...");
@@ -62,10 +65,20 @@ const Register = () => {
          toast.error(response.data.error || 'Registration failed.');
       }
     } catch (err) {
-      const errMsg = err.response?.data?.error || err.message || 'An error occurred.';
-      setError(`Registration failed: ${errMsg}`);
-      toast.error(`Registration failed: ${errMsg}`);
-      console.error("Registration error:", err);
+      // CHECK FOR VALIDATION ERRORS FIRST
+      if (err.response?.data?.errors) {
+        // Get the first error message from the backend's array
+        const firstError = err.response.data.errors[0].msg;
+        setError(`Registration failed: ${firstError}`);
+        toast.error(`Registration failed: ${firstError}`);
+      
+      } else {
+        // FALLBACK for other types of errors
+        const errMsg = err.response?.data?.error || err.message || 'An error occurred.';
+        setError(`Registration failed: ${errMsg}`);
+        toast.error(`Registration failed: ${errMsg}`);
+      }
+      console.error("Registration error:", err); // Keep this
     } finally {
       setLoading(false);
     }
@@ -74,11 +87,17 @@ const Register = () => {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      {/* CHANGED: Reduced vertical padding on mobile (py-6) 
+        and kept it larger for screens 'sm' and up (sm:py-12)
+      */}
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
           <BrandLogo />
           
-          <div className="bg-white p-8 shadow-xl rounded-lg">
+          {/* CHANGED: Reduced padding (p-6) and shadow on mobile.
+            Kept larger padding (sm:p-8) and shadow for 'sm' and up.
+          */}
+          <div className="bg-white p-6 sm:p-8 shadow-md sm:shadow-xl rounded-lg">
             <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 mb-6">
               Create Account
             </h2>
@@ -96,8 +115,8 @@ const Register = () => {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter username"
-                  disabled={loading || isVerified} // Disable if verified
+                  placeholder="Enter a unique username"
+                  disabled={loading || isVerified} // This is correct
                 />
               </div>
 
@@ -121,7 +140,7 @@ const Register = () => {
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
                   required
                   className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                   placeholder="Confirm your password"
@@ -169,4 +188,3 @@ const Register = () => {
 };
 
 export default Register;
-

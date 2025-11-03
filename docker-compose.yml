@@ -32,6 +32,8 @@ services:
     build:
       context: ./frontend-voter
       dockerfile: Dockerfile
+      args: # <-- ADD THIS SECTION
+        - VITE_API_URL=http://localhost:5000
     working_dir: /app
     restart: always
     ports:
@@ -47,7 +49,7 @@ services:
       - VITE_STORAGE_BUCKET=${VITE_STORAGE_BUCKET}
       - VITE_MESSAGING_SENDER_ID=${VITE_MESSAGING_SENDER_ID}
       - VITE_APP_ID=${VITE_APP_ID}
-      - VITE_API_URL=http://localhost:5000
+
   frontend-admin:
     container_name: iballot-frontend-admin
     build:

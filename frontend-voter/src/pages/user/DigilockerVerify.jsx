@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { useVerification } from '../../context/VerificationContext'; // Corrected path
-import BrandLogo from '../../components/BrandLogo'; // Corrected path
+import { useNavigate, Link } from 'react-router-dom'; // <-- Added Link
+import { useVerification } from '../../context/VerificationContext'; 
+import BrandLogo from '../../components/BrandLogo'; 
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 function DigilockerVerify() {
   const {
-    username, // Get username (Aadhaar) from context
-    phoneNumber, setPhoneNumber, // Get and set phone number in context
+    // username is no longer needed on this page
+    phoneNumber, setPhoneNumber, 
     setVerificationData,
     setIsVerified
   } = useVerification();
@@ -29,20 +29,14 @@ function DigilockerVerify() {
       return;
     }
 
-    if (!username) {
-       setError("Username (Aadhaar) is missing. Please go back to the register page and enter it first.");
-       toast.error("Aadhaar is missing. Please go back.");
-       return;
-    }
-
+    // <-- REMOVED the 'if (!username)' check
+    
     setLoading(true);
 
     try {
-      // Call the backend /api/verify/digilocker route
-      // This route should check both Aadhaar (username) and phone
-      const response = await axios.post(`${apiUrl}/api/verify/digilocker`, { 
-        username, // The Aadhaar from context
-        phoneNumber // The phone number from this page
+      // CHANGED: Endpoint and payload now match the backend
+      const response = await axios.post(`${apiUrl}/digilocker/verify-phone`, { 
+        phoneNumber // Only send the phone number
       });
 
       if (response.data.success) {
@@ -57,7 +51,8 @@ function DigilockerVerify() {
         setError(response.data.error || 'Verification failed. Please check your details.');
         toast.error(response.data.error || 'Verification failed.');
       }
-    } catch (err) {
+    } catch (err)
+ {
       const errMsg = err.response?.data?.error || err.message || 'An unknown error occurred.';
       setError(errMsg);
       toast.error(errMsg);
@@ -70,11 +65,18 @@ function DigilockerVerify() {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      {/* CHANGED: Reduced vertical padding on mobile (py-6) 
+        and kept it larger for screens 'sm' and up (sm:py-12)
+      */}
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
           <BrandLogo />
           
-          <div className="bg-white p-8 shadow-2xl rounded-2xl space-y-6">
+          {/* CHANGED: Reduced padding (p-6) and shadow on mobile.
+            Kept larger padding (sm:p-8) and shadow for 'sm' and up.
+            Also made rounding consistent with 'rounded-lg'.
+          */}
+          <div className="bg-white p-6 sm:p-8 shadow-md sm:shadow-xl rounded-lg space-y-6">
             <div className="text-center">
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">
                 Verify Your Phone
@@ -132,4 +134,3 @@ function DigilockerVerify() {
 }
 
 export default DigilockerVerify;
-

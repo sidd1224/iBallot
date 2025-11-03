@@ -27,7 +27,7 @@ const authLimiter = rateLimit({
 app.use(express.json());
 app.use(express.static('public'));
 
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(',');
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:3001").split(',');
 
 app.use(cors({
   origin: function (origin, callback) {
