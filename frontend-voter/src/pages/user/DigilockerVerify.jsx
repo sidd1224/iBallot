@@ -1,152 +1,135 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useVerification } from '../../context/VerificationContext'; // Corrected path
+import BrandLogo from '../../components/BrandLogo'; // Corrected path
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function DigilockerVerify() {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [verificationData, setVerificationData] = useState(null);
+  const {
+    username, // Get username (Aadhaar) from context
+    phoneNumber, setPhoneNumber, // Get and set phone number in context
+    setVerificationData,
+    setIsVerified
+  } = useVerification();
   
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
+  const apiUrl = import.meta.env.VITE_API_URL;
 
-  // Get returnUrl from query params (default to /register)
-  const params = new URLSearchParams(location.search);
-  const returnUrl = params.get('returnUrl') || '/register';
-
-  const handleVerifyPhone = async (e) => {
+  const handleVerify = async (e) => {
     e.preventDefault();
+    setError('');
+
     if (!phoneNumber) {
       setError("Please enter your phone number.");
+      toast.error("Please enter your phone number.");
       return;
     }
 
+    if (!username) {
+       setError("Username (Aadhaar) is missing. Please go back to the register page and enter it first.");
+       toast.error("Aadhaar is missing. Please go back.");
+       return;
+    }
+
     setLoading(true);
-    setError('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      const response = await axios.post(`${apiUrl}/digilocker/verify-phone`, { phoneNumber });
-      setVerificationData(response.data.data);
+      // Call the backend /api/verify/digilocker route
+      // This route should check both Aadhaar (username) and phone
+      const response = await axios.post(`${apiUrl}/api/verify/digilocker`, { 
+        username, // The Aadhaar from context
+        phoneNumber // The phone number from this page
+      });
+
+      if (response.data.success) {
+        toast.success("Verification successful! Returning to registration...");
+        // Save the successful verification data to the context
+        setVerificationData(response.data.data); // Save the verified data
+        setIsVerified(true); // Set the "green tick" status
+        
+        // Navigate back to the register page
+        setTimeout(() => navigate('/register'), 2000);
+      } else {
+        setError(response.data.error || 'Verification failed. Please check your details.');
+        toast.error(response.data.error || 'Verification failed.');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Phone verification failed. Please try again.');
+      const errMsg = err.response?.data?.error || err.message || 'An unknown error occurred.';
+      setError(errMsg);
+      toast.error(errMsg);
+      console.error("Verification error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleReturnToRegistration = () => {
-    if (verificationData) {
-      navigate(returnUrl, {
-        state: {
-          digilockerVerified: true,
-          verificationData
-        }
-      });
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-700 flex items-center justify-center p-4">
-      <div className="bg-white/95 backdrop-blur-sm shadow-2xl rounded-2xl w-full max-w-md p-8 space-y-6 transform transition-all hover:scale-[1.01]">
-        
-        {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+    <>
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8">
+          <BrandLogo />
+          
+          <div className="bg-white p-8 shadow-2xl rounded-2xl space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+                Verify Your Phone
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Enter the phone number associated with your Aadhaar for verification.
+              </p>
+            </div>
+            
+            <form className="space-y-6" onSubmit={handleVerify}>
+              {/* Phone Number Input */}
+              <div>
+                <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700">
+                  Phone Number
+                </label>
+                <input
+                  id="phone-number"
+                  name="phoneNumber"
+                  type="tel"
+                  autoComplete="tel"
+                  required
+                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  placeholder="Enter your 10-digit phone number"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                />
+              </div>
+
+              {error && (
+                <p className="text-center text-sm text-red-600">{error}</p>
+              )}
+
+              {/* Verify Button (no OTP, as requested) */}
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-400"
+                >
+                  {loading ? 'Verifying...' : 'Verify'}
+                </button>
+              </div>
+            </form>
+
+            <div className="text-center text-sm">
+              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+                &larr; Back to Registration
+              </Link>
+            </div>
           </div>
-          <h2 className="text-3xl font-bold text-gray-800">Digilocker Verification</h2>
-          <p className="text-sm text-gray-500 mt-2">Verify your identity to continue registration</p>
         </div>
-
-        {!verificationData ? (
-          <form onSubmit={handleVerifyPhone} className="space-y-4">
-            <div>
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
-                Enter your registered phone number
-              </label>
-              <input
-                id="phoneNumber"
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                required
-                placeholder="Enter your phone number"
-                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Verifying...
-                </span>
-              ) : 'Verify Phone Number'}
-            </button>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-green-700"><strong>Verification Successful!</strong></p>
-                  <p className="text-sm text-green-600 mt-1">Name: {verificationData.name || 'N/A'}</p>
-                  <p className="text-sm text-green-600">Phone: {verificationData.phoneNumber || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={handleReturnToRegistration}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-            >
-              Continue to Registration
-            </button>
-          </div>
-        )}
-
-        <p className="mt-4 text-center text-sm text-gray-600">
-          <button 
-            onClick={() => navigate(returnUrl)}
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            ← Back to Registration
-          </button>
-        </p>
       </div>
-    </div>
+    </>
   );
 }
 
 export default DigilockerVerify;
+

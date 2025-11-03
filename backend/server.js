@@ -5,6 +5,7 @@ const { initializeWebSocket, broadcast } = require("./websocket");
 const { startVoteListener } = require("./blockchain/contract");
 
 // Create an HTTP server from the Express app
+
 const server = http.createServer(app);
 
 // Initialize the WebSocket server and attach it to the HTTP server

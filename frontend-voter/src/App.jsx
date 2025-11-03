@@ -11,10 +11,12 @@ const CandidateList = React.lazy(() => import('./pages/user/CandidateList'));
 
 // --- ADMIN IMPORTS ARE REMOVED ---
 
+
+
 // Loading fallback component
 const LoadingFallback = () => (
-  <div className="flex justify-center items-center h-screen bg-gray-100">
-    <div className="text-xl font-semibold">Loading...</div>
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f3f4f6' }}>
+    <div style={{ fontSize: '1.25rem', color: '#4b5563' }}>Loading...</div>
   </div>
 );
 
@@ -24,17 +26,17 @@ function App() {
       <Router>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
-            {/* --- VOTER ROUTES --- */}
+            {/* User Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/verify/digilocker" element={<DigilockerVerify />} />
             <Route path="/candidates" element={<CandidateList />} />
+            
+            {/* --- ADMIN ROUTES ARE REMOVED --- */}
+            
 
-            {/* Default route redirects to login */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-
-            {/* All other routes (including any potential admin paths mistakenly typed) redirect to login */}
+            {/* Default redirect to login */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Suspense>
