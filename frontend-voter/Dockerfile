@@ -6,21 +6,18 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 
-# Hardcode backend API URL
+# Hardcoded API URL (or use ARG if you prefer)
 ENV VITE_API_URL=https://iballot-backend-715732606815.asia-south1.run.app
-
 RUN npm run build
 
-# --- Stage 2: Serve with Nginx ---
+# --- Stage 2: Nginx ---
 FROM nginx:alpine
 
-# Copy built app
+# Copy build output
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy fixed Nginx config
+# Copy Nginx config template
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
-
-EXPOSE 8080
-
-CMD ["nginx", "-g", "daemon off;"]
+# Use envsubst to substitute the $PORT variable and start nginx
+CMD ["/bin/sh", "-c", "envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
