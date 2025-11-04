@@ -5,15 +5,18 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Serve main SPA routes
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    location ~* \.(?:manifest\.webmanifest|json|ico|png|jpg|jpeg|gif|svg|css|js|woff2?|ttf|mp3|mp4|webp|txt)$ {
+    # Serve static assets with long caching
+    location ~* \.(?:manifest\.webmanifest|json|ico|png|jpg|jpeg|gif|svg|css|js|woff2?|ttf|webp|txt|mp3|mp4)$ {
         expires 6M;
         access_log off;
         add_header Cache-Control "public, no-transform";
     }
 
+    # Catch-all for 404s (for safety)
     error_page 404 /index.html;
 }
