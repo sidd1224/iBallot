@@ -1,51 +1,29 @@
 const crypto = require("crypto");
 const fs = require("fs");
 
-/**
- * Generates a SHA-256 hash of a UID.
- * @param {string} uid - The unique identifier (e.g., Aadhaar UID).
- * @returns {string} - The resulting hex-encoded SHA-256 hash.
- */
 function generateUidHash(uid) {
   return crypto.createHash("sha256").update(uid).digest("hex");
 }
 
-// --- Configuration ---
-const uids = [
-  "123456789012", "123456789013", "123456789014", "912598753753",
-  "446370025697", "581268199835", "702574619130", "737335420249",
-  "286673897992", "597452514229", "294309423977", "961181990388",
-  "260452100318", "769304788497", "843627194058", "825125474850",
-  "264223047649", "996527430610"
-];
+const inputFile = "uids.csv"; // the file containing 100 UIDs
+const outputFile = "generated_uid_hashes.txt";
 
-// --- Main Program ---
-let outputContent = "UID to UID Hash Mappings\n";
-outputContent += "==========================\n\n";
-
-uids.forEach(uid => {
-  const uidHash = generateUidHash(uid);
-  outputContent += `UID: ${uid}\nHash: ${uidHash}\n\n`;
-});
-
-// --- UPDATED: Use fs.open ---
-const filePath = 'generated_uid_hashes.txt';
-
-fs.open(filePath, 'w', (err, fd) => {
+fs.readFile(inputFile, "utf8", (err, data) => {
   if (err) {
-    console.error("❌ Error opening file:", err);
+    console.error("❌ Error reading input file:", err);
     return;
   }
-  
-  fs.writeFile(fd, outputContent, (err) => {
-    if (err) {
-      console.error("❌ Error writing to file:", err);
-    } else {
-      console.log(`✅ Successfully generated hashes and saved them to ${filePath}`);
-    }
-    
-    fs.close(fd, (err) => {
-      if (err) console.error("❌ Error closing file:", err);
-    });
+
+  const uids = data.split(/\r?\n/).filter(line => line.trim() !== "");
+  let outputContent = "UID to UID Hash Mappings\n==========================\n\n";
+
+  uids.forEach(uid => {
+    const hash = generateUidHash(uid);
+    outputContent += `UID: ${uid}\nHash: ${hash}\n\n`;
+  });
+
+  fs.writeFile(outputFile, outputContent, (err) => {
+    if (err) console.error("❌ Error writing file:", err);
+    else console.log(`✅ Generated ${uids.length} hashes and saved to ${outputFile}`);
   });
 });
