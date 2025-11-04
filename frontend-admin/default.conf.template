@@ -1,41 +1,19 @@
-# ------------------------------
-# Cloud Run Nginx Config (LF only)
-# ------------------------------
-
-types {
-    application/manifest+json webmanifest;
-    application/json json;
-}
-
 server {
     listen ${PORT};
     server_name _;
 
     root /usr/share/nginx/html;
-    index index.html index.htm;
+    index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
-        expires 1y;
+    location ~* \.(?:manifest\.webmanifest|json|ico|png|jpg|jpeg|gif|svg|css|js|woff2?|ttf|webp|txt|mp3|mp4)$ {
+        expires 6M;
         access_log off;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-    }
-
-    location = /sw.js {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        try_files $uri /index.html;
-    }
-
-    location = /manifest.webmanifest {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        try_files $uri /index.html;
+        add_header Cache-Control "public, no-transform";
     }
 
     error_page 404 /index.html;
-
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
-    }
+}
