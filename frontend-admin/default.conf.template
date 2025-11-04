@@ -5,16 +5,19 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Serve all frontend routes through index.html
     location / {
         try_files $uri $uri/ /index.html;
     }
 
+    # Static assets with cache
     location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
         expires 6M;
         access_log off;
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
+    # Service worker and manifest should not be cached
     location = /sw.js {
         add_header Cache-Control "no-cache, must-revalidate";
         try_files $uri /index.html;
@@ -25,5 +28,6 @@ server {
         try_files $uri /index.html;
     }
 
+    # Fallback
     error_page 404 /index.html;
 }
