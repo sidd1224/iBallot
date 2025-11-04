@@ -1,20 +1,27 @@
 server {
     listen ${PORT};
-    server_name _;
 
     root /usr/share/nginx/html;
-    index index.html;
+    index index.html index.htm;
+
+    server_name _;
 
     location / {
-        try_files $uri /index.html;
+        try_files $uri $uri/ /index.html;
     }
 
-    # Service worker and manifest should not be cached aggressively
+    # Optional: allow service worker & manifest requests
     location /sw.js {
         add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
     }
 
     location /manifest.webmanifest {
         add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
     }
+
+    # Optional logging (can help debug Cloud Run)
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
 }
