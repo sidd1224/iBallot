@@ -1,28 +1,19 @@
-# --- Stage 1: Build the Vite app ---
+# --- Stage 1: Build ---
 FROM node:20-alpine AS build
 WORKDIR /app
-
-# Install dependencies
 COPY package*.json ./
 RUN npm ci
-
-# Copy source files and build
 COPY . .
 RUN npm run build
 
-# --- Stage 2: Serve with Nginx ---
+# --- Stage 2: Serve ---
 FROM nginx:alpine
-
-# Copy built files to Nginx html directory
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy the Nginx template
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
-# Set the environment variable for Cloud Run port
+# Expose the port Cloud Run expects
 ENV PORT=8080
 EXPOSE 8080
 
-# Start Nginx with envsubst replacing ${PORT}
-CMD ["/bin/sh", "-c", "echo 'Generating config...' && ls -R /etc/nginx && envsubst < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && echo '----- Final Nginx Config -----' && cat /etc/nginx/conf.d/default.conf && echo 'Starting nginx...' && nginx -g 'daemon off;'"]
-
+# Safe envsubst — replace only ${PORT}, not $uri etc.
+CMD ["/bin/sh", "-c", "sed 's/\\${PORT}/'$PORT'/g' /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -t && nginx -g 'daemon off;'"]
