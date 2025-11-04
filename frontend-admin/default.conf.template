@@ -1,0 +1,30 @@
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 6M;
+        access_log off;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location = /sw.js {
+        add_header Cache-Control "no-cache, must-revalidate";
+        try_files $uri /index.html;
+    }
+
+    location = /manifest.webmanifest {
+        add_header Cache-Control "no-cache, must-revalidate";
+        try_files $uri /index.html;
+    }
+
+    error_page 404 /index.html;
+}
+"# trigger rebuild" 
