@@ -30,6 +30,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy Nginx template config
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
+RUN sed -i 's/\r$//' /etc/nginx/templates/default.conf.template
+
 # Cloud Run exposes $PORT
 ENV PORT=8080
 
