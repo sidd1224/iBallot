@@ -1,42 +1,43 @@
 # ------------------------------
 # 🌐 Cloud Run Frontend Template
-# Compatible with React/Vite + PWA
+# Works with React / Vue / Svelte + Vite
+# Fully SPA + PWA compatible
 # ------------------------------
 
-# Define MIME types for webmanifest & JSON
+# Define MIME types for manifest and JSON
 types {
     application/manifest+json webmanifest;
     application/json json;
 }
 
 server {
-    # Cloud Run injects the PORT env var
+    # Cloud Run injects the PORT environment variable dynamically
     listen ${PORT};
 
     server_name _;
 
-    # Serve the built static site
+    # Serve your built static files
     root /usr/share/nginx/html;
     index index.html index.htm;
 
     # ------------------------------
-    # Main app routes (SPA fallback)
+    # Main app route (SPA fallback)
     # ------------------------------
     location / {
         try_files $uri $uri/ /index.html;
     }
 
     # ------------------------------
-    # Static asset caching (CSS/JS/Images)
+    # Cache static assets aggressively
     # ------------------------------
-    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|webp)$ {
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
         expires 1y;
         access_log off;
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
     # ------------------------------
-    # Service worker — must bypass cache
+    # Service Worker — must bypass cache
     # ------------------------------
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
@@ -44,7 +45,7 @@ server {
     }
 
     # ------------------------------
-    # Web App Manifest — must not be cached
+    # Manifest file — must not be cached
     # ------------------------------
     location = /manifest.webmanifest {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
@@ -52,12 +53,12 @@ server {
     }
 
     # ------------------------------
-    # Error handling (fallback to SPA)
+    # Handle 404s (redirect to index.html)
     # ------------------------------
     error_page 404 /index.html;
 
     # ------------------------------
-    # Logs for debugging (optional)
+    # Logging (visible in Cloud Run console)
     # ------------------------------
     access_log /var/log/nginx/access.log;
     error_log /var/log/nginx/error.log;
