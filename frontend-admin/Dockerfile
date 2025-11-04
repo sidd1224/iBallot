@@ -11,7 +11,6 @@ FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
-# Cloud Run listens on PORT=8080
 ENV PORT=8080
 EXPOSE 8080
 
