@@ -24,7 +24,5 @@ server {
         add_header Cache-Control "no-cache, must-revalidate";
         try_files $uri /index.html;
     }
-
     error_page 404 /index.html;
 }
-
