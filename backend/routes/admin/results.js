@@ -6,36 +6,72 @@ const { retryBlockchainCall } = require("../../utils/blockchainUtils");
 const adminAuth = require("../../middleware/adminAuth");
 
 // Helper function to check election status from the contract
+// ✅ FIXED: Helper function to get correct election status
 async function getElectionStatus(electionId) {
+  let client;
   try {
-    console.log(`[getElectionStatus ${electionId}] Fetching start/end times from contract...`);
-    const startTimeBigInt = await retryBlockchainCall(() => contract.startTime());
-    const endTimeBigInt = await retryBlockchainCall(() => contract.endTime());
-    const now = Math.floor(Date.now() / 1000); // Current time in seconds
+    client = await pool.connect();
 
-    const startTimeNum = Number(startTimeBigInt);
-    const endTimeNum = Number(endTimeBigInt);
-    console.log(`[getElectionStatus ${electionId}] Contract Times - Start: ${startTimeNum}, End: ${endTimeNum}. Current Time: ${now}`);
+    // 1️⃣ Get start/end times from the database first
+    const dbRes = await client.query(
+      "SELECT start_time, end_time FROM elections WHERE election_id = $1",
+      [electionId]
+    );
 
+    if (dbRes.rows.length === 0) {
+      throw new Error("Election not found in DB");
+    }
 
-    // Check if start/end times have been set (are not zero)
-    const timesSet = startTimeNum > 0 && endTimeNum > 0;
-    const isOver = timesSet && now > endTimeNum;
-    const isStarted = timesSet && now >= startTimeNum;
+    const dbStart = Math.floor(new Date(dbRes.rows[0].start_time).getTime() / 1000);
+    const dbEnd = Math.floor(new Date(dbRes.rows[0].end_time).getTime() / 1000);
+    const now = Math.floor(Date.now() / 1000);
 
-    console.log(`[getElectionStatus ${electionId}] Status - Times Set: ${timesSet}, Started: ${isStarted}, Over: ${isOver}`);
+    // 2️⃣ Get the latest election ID (most recently created)
+    const latestElection = await client.query(
+      "SELECT election_id FROM elections ORDER BY start_time DESC LIMIT 1"
+    );
+    const latestId = latestElection.rows[0]?.election_id;
+
+    // Default to DB times
+    let startTime = dbStart;
+    let endTime = dbEnd;
+
+    // 3️⃣ Only fetch blockchain times for the currently active/latest election
+    if (parseInt(electionId) === parseInt(latestId)) {
+      try {
+        console.log(`[getElectionStatus ${electionId}] Using blockchain times (latest election).`);
+        const startTimeBigInt = await retryBlockchainCall(() => contract.startTime());
+        const endTimeBigInt = await retryBlockchainCall(() => contract.endTime());
+        startTime = Number(startTimeBigInt);
+        endTime = Number(endTimeBigInt);
+      } catch (bcErr) {
+        console.warn(`[getElectionStatus ${electionId}] Blockchain time fetch failed, falling back to DB times.`);
+      }
+    } else {
+      console.log(`[getElectionStatus ${electionId}] Using DB times (past election).`);
+    }
+
+    // 4️⃣ Determine status
+    const isStarted = now >= startTime;
+    const isOver = now > endTime;
+
+    console.log(`[getElectionStatus ${electionId}] Final status - Started: ${isStarted}, Over: ${isOver}`);
 
     return {
-      isElectionOver: isOver,
       isElectionStarted: isStarted,
-      startTime: startTimeNum,
-      endTime: endTimeNum
+      isElectionOver: isOver,
+      startTime,
+      endTime
     };
+
   } catch (error) {
-    console.error(`[getElectionStatus ${electionId}] Error fetching election status from blockchain: ${error.message}`);
-    throw new Error("Could not fetch election status from blockchain.");
+    console.error(`[getElectionStatus ${electionId}] ${error.message}`);
+    throw new Error("Failed to fetch election status.");
+  } finally {
+    if (client) client.release();
   }
 }
+
 
 // GET /api/admin/results/summary/:electionId
 router.get("/summary/:electionId", adminAuth, async (req, res) => {

@@ -1,34 +1,46 @@
-# === Stage 1: Build ===
+# ------------------------------
+# Stage 1 — Build the Vite app
+# ------------------------------
 FROM node:20-alpine AS build
 
+# Set working directory
 WORKDIR /app
 
 # Copy dependency files
 COPY package*.json ./
 
-# Install dependencies (production safe)
+# Install dependencies (clean & reproducible)
 RUN npm ci
 
-# Copy source code
+# Copy the rest of the project files
 COPY . .
 
-# Pass API URL (you can override via Cloud Build arg if needed)
-ENV VITE_API_URL=https://iballot-backend-715732606815.asia-south1.run.app
-
-# Build for production
+# Build the production version of your app
 RUN npm run build
 
-# === Stage 2: Serve via Nginx ===
+
+# ------------------------------
+# Stage 2 — Nginx serving layer
+# ------------------------------
 FROM nginx:alpine
 
-# Copy the built frontend
+# Copy built frontend assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy the nginx config template
+# Copy Nginx template config
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
-# Cloud Run expects the container to listen on $PORT (defaults to 8080)
-ENV PORT 8080
+RUN sed -i 's/\r$//' /etc/nginx/templates/default.conf.template
 
-# Start Nginx using our template that binds to $PORT
-CMD ["/bin/sh", "-c", "envsubst '$PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Cloud Run exposes $PORT
+ENV PORT=8080
+
+# Expose for local testing too
+EXPOSE 8080
+
+# ------------------------------
+# 🧠 Final startup command
+# Uses envsubst to inject PORT
+# (Keeps $uri and all Nginx vars safe)
+# ------------------------------
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && echo '----- Final Nginx Config -----' && cat /etc/nginx/conf.d/default.conf && echo '----- Starting Nginx -----' && nginx -t && nginx -g 'daemon off;'"]
