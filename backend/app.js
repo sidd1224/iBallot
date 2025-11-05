@@ -26,23 +26,35 @@ const authLimiter = rateLimit({
 
 app.use(express.json());
 app.use(express.static('public'));
+// --- CORS CONFIGURATION ---
+const defaultOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://iballot-frontend-admin-715732606815.asia-south1.run.app",
+  "https://iballot-frontend-voter-715732606815.asia-south1.run.app"
+];
 
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000,http://localhost:3001").split(',');
+const allowedOrigins = (process.env.CORS_ORIGINS || defaultOrigins.join(","))
+  .split(",")
+  .map(origin => origin.trim());
+
+console.log("✅ Allowed Origins:", allowedOrigins);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    
-    // Check if the request origin is in our allowed list
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not ' +
-                  'allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+
+    // Check if request origin matches any allowed URL
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
-    return callback(null, true);
+
+    // If not allowed
+    console.warn(`❌ Blocked CORS request from origin: ${origin}`);
+    return callback(new Error("CORS not allowed for this origin"), false);
   },
-  credentials: true
+  credentials: true,
 }));
 
 // --- PUBLIC USER ROUTES ---
