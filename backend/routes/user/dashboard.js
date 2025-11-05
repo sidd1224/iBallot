@@ -33,11 +33,12 @@ router.get("/", async (req, res) => {
     const userConstituency = userConstituencyQuery.rows[0];
 
     // Step 2: Get all currently active elections
-    const activeElectionsQuery = await client.query(
-      `SELECT election_id, name, type, start_time, end_time, enabled_constituencies
-       FROM elections
-       WHERE start_time <= NOW() AND end_time >= NOW()`
-    );
+const activeElectionsQuery = await client.query(
+  `SELECT election_id, name, type, start_time, end_time, enabled_constituencies
+   FROM elections
+   WHERE timezone('UTC', start_time) <= timezone('UTC', NOW())
+     AND timezone('UTC', end_time) >= timezone('UTC', NOW())`
+);
 
     const activeElections = activeElectionsQuery.rows;
 
