@@ -3,7 +3,14 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // ✅ Force-inject backend API URL for both builds
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(
+      process.env.VITE_API_URL || 'https://iballot-backend-715732606815.asia-south1.run.app'
+    ),
+  },
+
   plugins: [
     react(),
     VitePWA({
@@ -44,5 +51,7 @@ export default defineConfig({
       },
     }),
   ],
-})
-  
+
+  // Optional — ensures consistent base handling
+  base: '/',
+}))
