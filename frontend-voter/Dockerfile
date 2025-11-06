@@ -15,8 +15,13 @@ RUN npm ci
 # Copy the rest of the project files
 COPY . .
 
-# Build the production version of your app
-RUN npm run build
+# 👇 add this build-time argument
+ARG BUILD_MODE=production
+ENV BUILD_MODE=${BUILD_MODE}
+
+# 👇 use the mode variable here
+RUN echo "🏗️  Building in mode=${BUILD_MODE:-production}" && npm run build -- --mode=${BUILD_MODE:-production} && ls -l && ls -l dist || true
+
 
 
 # ------------------------------

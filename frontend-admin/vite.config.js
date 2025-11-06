@@ -52,6 +52,14 @@ export default defineConfig(({ mode }) => ({
     }),
   ],
 
-  // Optional — ensures consistent base handling
-  base: '/',
-}))
+    // Local or Docker dev server
+    server: {
+      host: '0.0.0.0', // Allow external connections (important for Docker)
+      port: 3000,
+      strictPort: true,
+    },
+
+    // Ensure consistent base path for production
+    base: '/',
+  };
+});

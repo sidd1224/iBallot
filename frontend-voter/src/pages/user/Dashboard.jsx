@@ -20,14 +20,17 @@ const Dashboard = () => {
         
         // --- 1. Get the token from the user object ---
         const token = currentUser?.token;
+        console.log("🟢 Fetching dashboard for user:", currentUser);
 
         // --- 2. Add the token to the request headers ---
-        const response = await axios.get(`${apiUrl}/dashboard`, {
+        const response = await axios.get(`${apiUrl}/api/dashboard`, {
           params: { username: currentUser?.user?.username },
          headers: {
             'Authorization': `Bearer ${token}` 
           }
         });
+       console.log("🟢 Response received:", response.data);
+
         setElections(response.data.elections);
       } catch (err) {
         setError('Failed to fetch active elections. Please try again later.');

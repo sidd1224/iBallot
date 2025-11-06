@@ -55,7 +55,7 @@ app.use("/login", authLimiter, require("./routes/user/login"));
 // Apply user authentication middleware to all routes that require a login
 app.use("/status", userAuth, require("./routes/user/status"));
 app.use("/vote", userAuth, require("./routes/user/vote"));
-app.use("/dashboard", userAuth, require("./routes/user/dashboard")); 
+app.use("/api/dashboard", userAuth, require("./routes/user/dashboard")); 
 app.use("/api/candidates", userAuth, require("./routes/user/candidateList"));
 
 
