@@ -1,0 +1,4 @@
+*.js text eol=lf
+*.json text eol=lf
+*.conf text eol=lf
+*.env text eol=lf

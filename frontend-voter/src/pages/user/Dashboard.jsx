@@ -8,58 +8,59 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-  
-  // --- NEW: Get voting status from local storage ---
-  const hasVoted = currentUser?.hasVoted;
+
+  // ✅ Read data consistently from sessionStorage
+  const user = JSON.parse(sessionStorage.getItem("user"));
+  const token = sessionStorage.getItem("token");
+  const hasVoted = user?.hasVoted;
+  const constituencyData = JSON.parse(sessionStorage.getItem("constituency"));
 
   useEffect(() => {
     const fetchActiveElections = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL;
-        
-        // --- 1. Get the token from the user object ---
-        const token = currentUser?.token;
+        console.log("Fetched user:", user);
+        console.log("Token:", token);
 
-        // --- 2. Add the token to the request headers ---
-        const response = await axios.get(`${apiUrl}/dashboard`, {
-          params: { username: currentUser?.user?.username },
-         headers: {
-            'Authorization': `Bearer ${token}` 
-          }
-        });
-        setElections(response.data.elections);
+        if (!token || !user?.username) {
+          setError("Missing token or user information");
+          setLoading(false);
+          return;
+        }
+
+        const response = await axios.get(`/api/dashboard`, {
+          params: { username: user.username },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        console.log("✅ Dashboard response:", response.data);
+        setElections(response.data.elections || []);
       } catch (err) {
-        setError('Failed to fetch active elections. Please try again later.');
-        console.error(err);
+        console.error("❌ Dashboard fetch error:", err);
+        setError("Failed to fetch active elections. Please try again later.");
       } finally {
         setLoading(false);
       }
     };
 
-    // Only fetch elections if the user has not voted
-    if (currentUser?.user?.username && !hasVoted) {
-        fetchActiveElections();
-    } else {
-        setLoading(false);
-    }
-  }, [currentUser?.user?.username, hasVoted]);
+    // ✅ Always try fetching elections
+    fetchActiveElections();
+  }, []); // run once when component mounts
 
   const handleProceedToVote = (election) => {
-    const constituencyData = currentUser.constituency;
+
     let constituencyId;
 
     if (election.type === 'STATE_LEGISLATIVE') {
-        constituencyId = constituencyData.ac_id;
+      constituencyId = constituencyData.ac_id;
     } else if (election.type === 'PARLIAMENTARY') {
-        constituencyId = constituencyData.pc_id;
+      constituencyId = constituencyData.pc_id;
     }
 
     if (!constituencyId) {
-        alert("Could not determine your constituency ID for this election. Please log out and log back in.");
-        return;
+      alert("Could not determine your constituency ID. Please log out and log back in.");
+      return;
     }
-    
+
     navigate(`/candidates/${election.election_id}/${constituencyId}`);
   };
 
@@ -74,7 +75,7 @@ const Dashboard = () => {
         <p><strong>Ends:</strong> {new Date(election.end_time).toLocaleString()}</p>
       </div>
       <div className="mt-6">
-        <button 
+        <button
           className="w-full btn bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition"
           onClick={() => handleProceedToVote(election)}
         >
@@ -90,12 +91,11 @@ const Dashboard = () => {
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Voter Dashboard</h1>
           <p className="text-gray-600 mt-1">
-            Welcome, {currentUser?.user?.username || 'Voter'}!
+            Welcome, {user?.username || 'Voter'}!
           </p>
         </header>
 
         <main>
-          {/* --- NEW: Conditional rendering based on voting status --- */}
           {hasVoted ? (
             <div className="text-center py-10 px-6 bg-green-100 border-l-4 border-green-500 rounded-lg shadow-sm">
               <p className="text-lg font-semibold text-green-800">Thank you for voting!</p>
@@ -104,11 +104,8 @@ const Dashboard = () => {
           ) : (
             <>
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">Your Eligible Elections</h2>
-              
               {loading && <p>Loading elections...</p>}
-              
               {error && <p className="text-red-500">{error}</p>}
-
               {!loading && !error && (
                 <div className="space-y-6">
                   {elections.length > 0 ? (

@@ -9,13 +9,15 @@ const Dashboard = React.lazy(() => import('./pages/user/Dashboard'));
 const DigilockerVerify = React.lazy(() => import('./pages/user/DigilockerVerify'));
 const CandidateList = React.lazy(() => import('./pages/user/CandidateList'));
 
-// --- ADMIN IMPORTS ARE REMOVED ---
-
-
-
 // Loading fallback component
 const LoadingFallback = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f3f4f6' }}>
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    backgroundColor: '#f3f4f6'
+  }}>
     <div style={{ fontSize: '1.25rem', color: '#4b5563' }}>Loading...</div>
   </div>
 );
@@ -26,15 +28,14 @@ function App() {
       <Router>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
-            {/* User Routes */}
+            {/* --- USER ROUTES --- */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/verify/digilocker" element={<DigilockerVerify />} />
-            <Route path="/candidates" element={<CandidateList />} />
-            
-            {/* --- ADMIN ROUTES ARE REMOVED --- */}
-            
+
+            {/* ✅ FIXED: Dynamic params for CandidateList */}
+            <Route path="/candidates/:electionId/:assemblyId" element={<CandidateList />} />
 
             {/* Default redirect to login */}
             <Route path="*" element={<Navigate to="/login" replace />} />
@@ -46,4 +47,3 @@ function App() {
 }
 
 export default App;
-

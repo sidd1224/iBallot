@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import BrandLogo from '../../components/BrandLogo';
-import { useVerification } from '../../context/VerificationContext'; // <-- Import context
+import { useVerification } from '../../context/VerificationContext';
 import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const Login = () => {
-  // --- USE SHARED CONTEXT ---
-  // Use context for username/password, but keep local state for loading/error
   const { username, setUsername, password, setPassword } = useVerification();
-  // --- END ---
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const apiUrl = import.meta.env.VITE_API_URL;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,27 +18,32 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await axios.post(`${apiUrl}/login`, {
+      const response = await axios.post(`/api/login`, {
         username,
         password,
       });
 
-      // Store the token and user data
+      // ✅ Log backend response (for debugging)
+      console.log("✅ Login Response:", response.data);
+
+      // ✅ Store all relevant data from backend
       sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('user', JSON.stringify(response.data.user));
+      sessionStorage.setItem('user', JSON.stringify({
+        username: response.data.user.username,
+        hasVoted: response.data.hasVoted // ✅ Add this field for consistency
+      }));
       sessionStorage.setItem('voterHash', response.data.voterHash);
       sessionStorage.setItem('walletAddress', response.data.walletAddress);
       sessionStorage.setItem('constituency', JSON.stringify(response.data.constituency));
-      
+
       toast.success('Login successful! Redirecting...');
-      
-      // Redirect to dashboard after a short delay
+
       setTimeout(() => {
         navigate('/dashboard');
       }, 1500);
-
     } catch (err) {
       const errMsg = err.response?.data?.error || 'Login failed. Please check your credentials.';
+      console.error("❌ Login Error:", err.response || err);
       setError(errMsg);
       toast.error(errMsg);
       setLoading(false);
@@ -56,13 +56,13 @@ const Login = () => {
       <div className="flex min-h-screen items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
           <BrandLogo />
-          
+
           <div className="bg-white p-8 shadow-xl rounded-lg">
             <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 mb-6">
               Voter Login
             </h2>
             {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-            
+
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-gray-700">
@@ -71,8 +71,8 @@ const Login = () => {
                 <input
                   type="text"
                   id="username"
-                  value={username} // Use context state
-                  onChange={(e) => setUsername(e.target.value)} // Use context setter
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                   placeholder="Enter your username"
@@ -81,12 +81,14 @@ const Login = () => {
               </div>
 
               <div>
-                <label htmlFor="password">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
                 <input
                   id="password"
                   type="password"
-                  value={password} // Use context state
-                  onChange={(e) => setPassword(e.target.value)} // Use context setter
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                   placeholder="Enter your password"
@@ -117,4 +119,3 @@ const Login = () => {
 };
 
 export default Login;
-
