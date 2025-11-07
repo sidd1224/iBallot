@@ -91,7 +91,7 @@ const HomePage = ({ adminToken, isActive }) => {
         const fetchStats = async () => {
             try {
                 setLoading(true); // Set loading true on fetch
-                const response = await axios.get(`${apiUrl}/admin/dashboard/summary`, {
+                const response = await axios.get(`/admin/dashboard/summary`, {
                     headers: { Authorization: adminToken }
                 });
                 if (response.data.success) {
@@ -148,7 +148,7 @@ const ElectionsPage = ({ adminToken, isActive }) => {
 // ... (existing code inside fetchElections)
     try {
       setLoading(true);
-      const response = await axios.get(`${apiUrl}/admin/elections`, {
+      const response = await axios.get(`/admin/elections`, {
         headers: { Authorization: adminToken }
       });
       setElections(response.data.elections);
@@ -187,7 +187,7 @@ const ElectionsPage = ({ adminToken, isActive }) => {
               endTime: new Date(formState.endTime).toISOString(),
               enabled_constituencies: formState.enabledConstituencies.split(',').map(item => parseInt(item.trim())).filter(Number.isInteger)
           };
-          await axios.post(`${apiUrl}/admin/elections`, payload, {
+          await axios.post(`/admin/elections`, payload, {
               headers: { Authorization: adminToken }
           });
           setFormSuccess('Election created successfully!');
@@ -317,7 +317,7 @@ const CandidatesPage = ({ adminToken, isActive }) => {
 
         try {
             // 4. Send the single request to the merged backend route
-            const response = await axios.post(`${apiUrl}/admin/candidates/upload`, formData, {
+            const response = await axios.post(`/admin/candidates/upload`, formData, {
                 headers: { 
                     // 'Content-Type': 'multipart/form-data' is set automatically by axios when using FormData
                     'Authorization': adminToken
@@ -440,7 +440,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
     const fetchElections = async () => {
 // ... (existing code inside fetchElections)
       try {
-        const response = await axios.get(`${apiUrl}/admin/elections`, {
+        const response = await axios.get(`/admin/elections`, {
           headers: { Authorization: adminToken }
         });
         setElections(response.data.elections);
@@ -468,7 +468,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
 
     try {
       // ---!! API CALL UPDATED to use fast route !!---
-      const response = await axios.get(`${apiUrl}/admin/results/summary/${electionId}`, {
+      const response = await axios.get(`/admin/results/summary/${electionId}`, {
         headers: { Authorization: adminToken }
       });
       setSummary(response.data);
@@ -488,7 +488,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
       
       try {
           // ---!! API CALL UPDATED to use fast route !!---
-          const response = await axios.get(`${apiUrl}/admin/results/${selectedElectionId}/${constituencyId}`, {
+          const response = await axios.get(`$/admin/results/${selectedElectionId}/${constituencyId}`, {
               headers: { Authorization: adminToken }
           });
           // Sort results by votes descending
@@ -604,7 +604,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
     setError('');
 
     try {
-      const response = await axios.post(`${apiUrl}/admin/results/break-tie`, {
+      const response = await axios.post(`/admin/results/break-tie`, {
         electionId: selectedElectionId,
         tiedParties: summary.tiedParties
       }, {

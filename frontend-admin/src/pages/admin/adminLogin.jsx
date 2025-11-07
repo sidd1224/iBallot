@@ -15,7 +15,7 @@ const AdminLogin = () => {
     setError('');
     try {
       // The backend route for admin authentication
-      await axios.post(`${apiUrl}/admin/auth/login`, { token });
+      await axios.post(`/admin/auth/login`, { token });
       
       // On success, store the token and navigate to the dashboard
       sessionStorage.setItem('adminToken', token);

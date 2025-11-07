@@ -95,7 +95,7 @@ export default defineConfig(({ mode }) => {
     // Local or Docker dev server
     server: {
       host: '0.0.0.0', // Allow external connections (important for Docker)
-      port: 3001,
+      port: 3000,
       strictPort: true,
     },
 

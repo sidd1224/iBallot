@@ -57,7 +57,7 @@ const CandidateList = () => {
     };
 
     fetchCandidates();
-  }, [electionId, assemblyId, token, user, navigate]);
+  }, [electionId, assemblyId, token, user]);
 
   // ✅ Handle vote submission
   const handleVoteSubmit = async (e) => {
@@ -137,15 +137,20 @@ const CandidateList = () => {
                 {/* Symbol */}
                 <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center mr-4">
                   {candidate.symbol && (
-                    <img
-                      src={
-                        candidate.symbol.startsWith("http")
-                          ? candidate.symbol
-                          : `/api${candidate.symbol}`
-                      }
-                      alt={`${candidate.party_name} symbol`}
-                      className="w-full h-full object-contain p-1"
-                    />
+<img
+  src={
+    candidate.symbol
+      ? candidate.symbol.startsWith("http")
+        ? candidate.symbol
+        : candidate.symbol.startsWith("/api")
+          ? candidate.symbol
+          : `/api${candidate.symbol.startsWith("/") ? candidate.symbol : `/${candidate.symbol}`}`
+      : "/placeholder.png" // optional fallback image
+  }
+  alt={`${candidate.party_name} symbol`}
+  className="w-full h-full object-contain p-1"
+/>
+
                   )}
                 </div>
 

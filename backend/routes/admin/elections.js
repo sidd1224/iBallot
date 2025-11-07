@@ -7,6 +7,7 @@ const { contract } = require("../../blockchain/contract"); // Import the contrac
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
 
 // Create an election
+// Create an election
 router.post("/", adminAuth, async (req, res) => {
   const { electionId, name, type, startTime, endTime, enabled_constituencies } = req.body;
 
@@ -19,24 +20,40 @@ router.post("/", adminAuth, async (req, res) => {
     client = await pool.connect();
     await client.query("BEGIN");
 
-    // Insert into database (unchanged)
+    // ✅ Normalize enabled_constituencies into a proper JSON array
+    let enabledArray = [];
+    if (enabled_constituencies) {
+      if (Array.isArray(enabled_constituencies)) {
+        enabledArray = enabled_constituencies.map(Number);
+      } else if (typeof enabled_constituencies === "string") {
+        // Convert "1,2,3" → [1,2,3]
+        enabledArray = enabled_constituencies
+          .split(",")
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(Number);
+      }
+    }
+
+    console.log("🧩 Normalized enabled_constituencies:", enabledArray);
+
+    // ✅ Insert into database safely with JSON.stringify()
     await client.query(
       `INSERT INTO elections (election_id, name, type, start_time, end_time, enabled_constituencies)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [electionId, name, type, startTime, endTime, enabled_constituencies || []]
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [electionId, name, type, startTime, endTime, JSON.stringify(enabledArray)]
     );
 
     // Convert times to Unix timestamps (seconds)
     const startTimestamp = Math.floor(new Date(startTime).getTime() / 1000);
     const endTimestamp = Math.floor(new Date(endTime).getTime() / 1000);
 
-    // --- FIX: Call startElection with only start and end times ---
-    console.log(`Calling startElection on contract with startTime: ${startTimestamp}, endTime: ${endTimestamp}`);
+    // --- Call blockchain ---
+    console.log(`Calling startElection with startTime: ${startTimestamp}, endTime: ${endTimestamp}`);
     const tx = await retryBlockchainCall(() => contract.startElection(startTimestamp, endTimestamp));
     console.log("Transaction submitted:", tx.hash);
-    await tx.wait(); // Wait for the transaction to be mined
+    await tx.wait();
     console.log("Transaction confirmed:", tx.hash);
-    // --- END FIX ---
 
     await client.query("COMMIT");
     res.status(201).json({ message: "✅ Election created successfully on database and blockchain" });
@@ -44,13 +61,12 @@ router.post("/", adminAuth, async (req, res) => {
   } catch (err) {
     if (client) await client.query("ROLLBACK");
     console.error("❌ Error creating election:", err);
-    // Provide more specific error details if available
-    const errorDetails = err.reason || err.message || "Unknown error";
-    res.status(500).json({ error: "Failed to create election", details: errorDetails });
+    res.status(500).json({ error: "Failed to create election", details: err.message });
   } finally {
     if (client) client.release();
   }
 });
+
 
 // List all elections (only from database)
 router.get("/", adminAuth, async (req, res) => {
