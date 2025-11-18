@@ -13,6 +13,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+      - ./backend/public/symbols:/app/public/symbols   # ✅ FIXED: bind mount instead of volume
     command: npm run server
     environment:
       - PORT=8080
@@ -27,7 +28,6 @@ services:
       - RPC_URL
       - ADMIN_TOKEN
       - JWT_SECRET
-      # allow host & container frontends
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://frontend-admin:8080,http://frontend-voter:8080
 
   frontend-admin:
@@ -44,8 +44,7 @@ services:
       - frontend_node_modules:/app/node_modules
     environment:
       - PORT=8080
-      # runtime env (useful for e.g. preview or runtime scripts)
-      - VITE_API_URL=http://backend:5000
+      - VITE_API_URL=http://backend:8080
       - VITE_API_KEY=${VITE_API_KEY}
       - VITE_AUTH_DOMAIN=${VITE_AUTH_DOMAIN}
       - VITE_PROJECT_ID=${VITE_PROJECT_ID}
@@ -69,7 +68,7 @@ services:
       - frontend_node_modules:/app/node_modules
     environment:
       - PORT=8080
-      - VITE_API_URL=http://backend:5000
+      - VITE_API_URL=http://backend:8080
       - VITE_API_KEY=${VITE_API_KEY}
       - VITE_AUTH_DOMAIN=${VITE_AUTH_DOMAIN}
       - VITE_PROJECT_ID=${VITE_PROJECT_ID}
@@ -82,3 +81,4 @@ services:
 volumes:
   backend_node_modules:
   frontend_node_modules:
+  

@@ -1,31 +1,34 @@
-# ------------------------------
-# Stage 1 — Build the Vite app
-# ------------------------------
-FROM node:20-alpine AS build
-
+# =======================================
+# STAGE 1 — Build the Vite React App
+# =======================================
+FROM node:18-alpine AS build
 WORKDIR /app
+
+# Copy dependencies and install
 COPY package*.json ./
 RUN npm ci
+
+# Copy all source code and build the app
 COPY . .
+RUN npm run build
 
-# 👇 add this build-time argument
-ARG BUILD_MODE=production
-ENV BUILD_MODE=${BUILD_MODE}
+# =======================================
+# STAGE 2 — Serve with Nginx
+# =======================================
+FROM nginx:stable-alpine
+WORKDIR /usr/share/nginx/html
 
-# 👇 use the mode variable here
-RUN echo "🏗️  Building in mode=$BUILD_MODE" && npm run build -- --mode=$BUILD_MODE
+# Copy built frontend from previous stage
+COPY --from=build /app/dist .
 
-
-# ------------------------------
-# Stage 2 — Nginx serving layer
-# ------------------------------
-FROM nginx:alpine
-
-COPY --from=build /app/dist /usr/share/nginx/html
+# Copy dynamic Nginx template
 COPY default.conf.template /etc/nginx/templates/default.conf.template
-RUN sed -i 's/\r$//' /etc/nginx/templates/default.conf.template
 
-ENV PORT=8080
+# Install envsubst to dynamically inject environment variables
+RUN apk add --no-cache gettext
+
+# Expose container port
 EXPOSE 8080
 
-CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Use envsubst to dynamically replace VITE_API_URL before starting Nginx
+CMD ["/bin/sh", "-c", "envsubst '$VITE_API_URL' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

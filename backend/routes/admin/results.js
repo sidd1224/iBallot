@@ -91,10 +91,9 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
     const savedWinnerName = election.winner_party_name; // Winner from previous tie-break
 
     // 2. Get election status from Blockchain
-    // **Point 1:** Fetch current status from blockchain
     const { isElectionOver, isElectionStarted, startTime, endTime } = await getElectionStatus(electionId);
 
-    // 3. **Point 3:** Count eligible voters ONLY from eci_admin_data
+    // 3. Count eligible voters ONLY from eci_admin_data
     let totalVoters = 0;
     if (enabledConstituencies.length > 0) {
         const eligibleVotersQuery = `
@@ -111,7 +110,7 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
 
     // 4. Get total votes cast from Blockchain
     let votersVoted = 0;
-     if (isElectionStarted || isElectionOver) { // Fetch if started or over
+     if (isElectionStarted || isElectionOver) {
         try {
             const votersVotedBigInt = await retryBlockchainCall(() => contract.getTotalVotes(electionId));
             votersVoted = parseInt(votersVotedBigInt.toString(), 10);
@@ -131,9 +130,8 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
     if (isElectionOver) {
         console.log(`[Summary ${electionId}] Election is over. Calculating winner status...`);
 
-        // Get candidates only if needed for calculation
         let allCandidates = [];
-        if (!savedWinnerName && enabledConstituencies.length > 0) { // Only fetch if no winner saved & constituencies exist
+        if (!savedWinnerName && enabledConstituencies.length > 0) {
             const candidatesRes = await client.query(
               `SELECT candidate_id, constituency_id, party_name
                FROM candidates
@@ -147,10 +145,8 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
              console.warn(`[Summary ${electionId}] Cannot calculate winner - no constituencies enabled.`);
         }
 
-        // Proceed if we need to calculate based on votes
         if (!savedWinnerName && allCandidates.length > 0) {
             console.log(`[Summary ${electionId}] Fetching individual vote counts for ${allCandidates.length} candidates...`);
-            // Fetch vote counts (can be slow, consider alternative if performance issues)
             const voteCountsPromises = allCandidates.map(async (c) => {
                 try {
                     const countBigInt = await retryBlockchainCall(() =>
@@ -165,7 +161,6 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
             const allVoteCounts = await Promise.all(voteCountsPromises);
             console.log(`[Summary ${electionId}] Finished fetching vote counts.`);
 
-            // Aggregate votes
             const partyVotes = allVoteCounts.reduce((acc, current) => {
                 if (current.party_name) {
                     acc[current.party_name] = (acc[current.party_name] || 0) + current.votes;
@@ -178,7 +173,6 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
                  console.warn(`[Summary ${electionId}] WARNING: Aggregated sum (${aggregatedVoteSum}) != getTotalVotes (${votersVoted}). Using aggregation for winner.`);
              }
 
-            // Determine winner/tie from aggregation
             const sortedParties = Object.entries(partyVotes)
                 .map(([name, votes]) => ({ name, votes }))
                 .sort((a, b) => b.votes - a.votes);
@@ -188,11 +182,10 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
                 tiedParties = sortedParties.filter(p => p.votes === maxVotes);
 
                 if (tiedParties.length === 1) {
-                    winningParty = tiedParties[0]; // Clear winner
+                    winningParty = tiedParties[0];
                     tieDetected = false;
                     console.log(`[Summary ${electionId}] Winner determined: ${winningParty.name} (${winningParty.votes} votes).`);
                 } else if (tiedParties.length > 1) {
-                     // **Point 2 & 4:** Tie detected (even at 0 votes), no saved winner yet
                     tieDetected = true;
                     winningParty = null;
                     console.log(`[Summary ${electionId}] Tie detected (Votes: ${maxVotes}) between:`, tiedParties.map(p => p.name));
@@ -200,13 +193,11 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
             }
         }
 
-         // **Point 4:** Handle saved winner case separately
          if (savedWinnerName) {
-              winningParty = { name: savedWinnerName, votes: "N/A (Draw)" }; // Votes maybe unavailable/irrelevant after draw
-              tieDetected = false; // Tie is resolved
+              winningParty = { name: savedWinnerName, votes: "N/A (Draw)" };
+              tieDetected = false;
               console.log(`[Summary ${electionId}] Using previously saved winner: ${savedWinnerName}`);
          }
-         // Handle no-winner scenario only if no tie was detected and no winner saved/calculated
          else if (!winningParty && !tieDetected) {
              if (aggregatedVoteSum === 0 && allCandidates.length > 0) {
                  winningParty = { name: "N/A (No votes cast)", votes: 0 };
@@ -218,21 +209,21 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
     } else {
          console.log(`[Summary ${electionId}] Election not over yet. No winner calculation.`);
     }
+      
 
-    // 6. Send the final summary object
     res.json({
       election: {
         ...election,
-        startTime, // Blockchain time
-        endTime    // Blockchain time
+        startTime,
+        endTime
       },
-      isElectionStarted, // Status based on blockchain times
-      isElectionOver,   // Status based on blockchain times
-      totalVoters,      // Count from ECI data
-      votersVoted,      // Count from contract.getTotalVotes
-      winningParty,     // Could be null if tieDetected is true AND no winner saved
-      tieDetected,      // True if tie exists AND no winner saved
-      tiedParties       // List of parties tied for the lead (if tieDetected)
+      isElectionStarted,
+      isElectionOver,
+      totalVoters,
+      votersVoted,
+      winningParty,
+      tieDetected,
+      tiedParties
     });
 
   } catch (error) {
@@ -245,7 +236,6 @@ router.get("/summary/:electionId", adminAuth, async (req, res) => {
 
 
 // GET /api/admin/results/:electionId/:constituencyId
-// (No changes needed in this route based on the 4 points)
 router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
   const { electionId, constituencyId } = req.params;
   let client;
@@ -276,8 +266,11 @@ router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
               contract.getVoteCount(BigInt(electionId), BigInt(constituencyId), BigInt(candidate.candidate_id))
             );
             return {
-              id: candidate.candidate_id, name: candidate.name, party_name: candidate.party_name,
-              symbol: candidate.symbol, votes: parseInt(voteCountBigInt.toString(), 10),
+              id: candidate.candidate_id,
+              name: candidate.name,
+              party_name: candidate.party_name,
+              symbol: candidate.symbol,
+              votes: parseInt(voteCountBigInt.toString(), 10),
             };
           } catch (voteCountErr) {
             console.warn(`[Constituency ${constituencyId}] Could not get vote count for candidate ${candidate.candidate_id}: ${voteCountErr.message}`);
@@ -290,6 +283,21 @@ router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
      }
 
     results.sort((a, b) => b.votes - a.votes);
+
+    // ✅ Normalize symbol URLs
+    results = results.map(candidate => {
+      if (candidate.symbol) {
+  let symbolPath = candidate.symbol.trim();
+
+  // Remove any accidental double prefixes
+  symbolPath = symbolPath.replace(/^\/?api\/symbols\//, ""); // remove leading api/symbols
+  symbolPath = symbolPath.replace(/^symbols\//, "");         // remove leading symbols/
+
+  candidate.symbol = `${symbolPath}`;
+}
+      return candidate;
+    });
+
     res.json({ isElectionOver, isElectionStarted, results });
 
   } catch (error) {
@@ -301,7 +309,6 @@ router.get("/:electionId/:constituencyId", adminAuth, async (req, res) => {
 });
 
 // POST /api/admin/results/break-tie
-// (No changes needed here, it allows breaking 0-0 ties and saves winner)
 router.post("/break-tie", adminAuth, async (req, res) => {
     const { electionId, tiedParties } = req.body;
     let client;
@@ -319,7 +326,6 @@ router.post("/break-tie", adminAuth, async (req, res) => {
 
         client = await pool.connect();
         try {
-            // Persist winner
             await client.query("UPDATE elections SET winner_party_name = $1 WHERE election_id = $2", [winningParty.name, electionId]);
             console.log(`[Break-Tie ${electionId}] Persisted winner ${winningParty.name} to DB.`);
         } finally {
@@ -336,4 +342,3 @@ router.post("/break-tie", adminAuth, async (req, res) => {
 });
 
 module.exports = router;
-

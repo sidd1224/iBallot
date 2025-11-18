@@ -419,218 +419,195 @@ const CandidatesPage = ({ adminToken, isActive }) => {
         </div>
     );
 };
-
-// MODIFIED: Added isActive prop
+// ======================= RESULTS PAGE =======================
 const ResultsPage = ({ adminToken, isActive }) => {
   const [elections, setElections] = useState([]);
-// ... (rest of state in ResultsPage is unchanged)
-  const [selectedElectionId, setSelectedElectionId] = useState('');
-  
-  const [constituencyId, setConstituencyId] = useState('');
+  const [selectedElectionId, setSelectedElectionId] = useState("");
+  const [constituencyId, setConstituencyId] = useState("");
   const [constituencyResults, setConstituencyResults] = useState([]);
-  
   const [summary, setSummary] = useState(null);
-
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const ws = useRef(null);
   const apiUrl = import.meta.env.VITE_API_URL;
-  const ws = useRef(null); // MODIFIED: Use a ref to store the WebSocket object
 
+  // ---- Fetch Elections ----
   useEffect(() => {
     const fetchElections = async () => {
-// ... (existing code inside fetchElections)
       try {
-        const response = await axios.get(`/admin/elections`, {
-          headers: { Authorization: adminToken }
+        const res = await axios.get(`/admin/elections`, {
+          headers: { Authorization: adminToken },
         });
-        setElections(response.data.elections);
+        setElections(res.data.elections);
       } catch (err) {
         console.error("Failed to fetch elections:", err);
       }
     };
-    // MODIFIED: Only fetch if this page is active
-    if (adminToken && isActive) {
-        fetchElections();
-    }
-  // MODIFIED: Added isActive to dependency array
-  }, [adminToken, apiUrl, isActive]);
 
+    if (adminToken && isActive) fetchElections();
+  }, [adminToken, isActive]);
+
+  // ---- Fetch Election Summary ----
   const handleElectionSelect = async (electionId) => {
-// ... (existing code inside handleElectionSelect)
     setSelectedElectionId(electionId);
     setSummary(null);
     setConstituencyResults([]);
-    setConstituencyId('');
+    setConstituencyId("");
     if (!electionId) return;
 
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      // ---!! API CALL UPDATED to use fast route !!---
-      const response = await axios.get(`/admin/results/summary/${electionId}`, {
-        headers: { Authorization: adminToken }
+      const res = await axios.get(`/admin/results/summary/${electionId}`, {
+        headers: { Authorization: adminToken },
       });
-      setSummary(response.data);
+      setSummary(res.data);
     } catch (err) {
-      setError('Failed to fetch election summary.');
+      setError("Failed to fetch election summary.");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
-  
+
+  // ---- Fetch Constituency Results ----
   const handleFetchConstituencyResults = async (e) => {
-// ... (existing code inside handleFetchConstituencyResults)
-      e.preventDefault();
-      if (!constituencyId) return;
-      setLoading(true);
-      
-      try {
-          // ---!! API CALL UPDATED to use fast route !!---
-          const response = await axios.get(`$/admin/results/${selectedElectionId}/${constituencyId}`, {
-              headers: { Authorization: adminToken }
-          });
-          // Sort results by votes descending
-          const sortedResults = (response.data.results || []).sort((a,b) => b.votes - a.votes);
-          setConstituencyResults(sortedResults);
-      } catch (err) {
-          setError('Failed to fetch constituency results.');
-      } finally {
-          setLoading(false);
-      }
+    e.preventDefault();
+    if (!constituencyId) return;
+    setLoading(true);
+
+    try {
+      const res = await axios.get(
+        `/admin/results/${selectedElectionId}/${constituencyId}`,
+        {
+          headers: { Authorization: adminToken },
+        }
+      );
+      const sorted = (res.data.results || []).sort((a, b) => b.votes - a.votes);
+      setConstituencyResults(sorted);
+    } catch (err) {
+      setError("Failed to fetch constituency results.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ---!! LIVE UPDATE LOGIC: WebSocket Connection !!---
-  useEffect(() => {
-    // MODIFIED: Connect only if page is active and election is selected
-    if (isActive && selectedElectionId) {
-        // Determine WebSocket protocol (ws vs wss)
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        
-        // Use VITE_API_URL to get the backend host, then construct ws URL
-// ... (existing code for wsHost calculation)
-        const apiUrlString = import.meta.env.VITE_API_URL || '';
-        let wsHost = '';
-        
-        if (apiUrlString) {
-            try {
-                // Use URL to reliably parse the host, works for http/https
-                const url = new URL(apiUrlString);
-                wsHost = url.host; // e.g., "api.iballot.com" or "localhost:3000"
-            } catch (e) {
-                // Fallback if VITE_API_URL is relative or invalid
-                wsHost = window.location.host; 
-            }
-        } else {
-            // Fallback if VITE_API_URL is not set
-            wsHost = window.location.host;
+  // ---- WebSocket Live Updates (Auto-Reconnect) ----
+// ---- WebSocket Live Updates (Auto-Reconnect + Dynamic Backend URL) ----
+useEffect(() => {
+  if (!isActive || !selectedElectionId) return;
+
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  let wsHost;
+
+  try {
+    // Try to parse VITE_API_URL (e.g. http://backend:5000 or https://api.iballot.com)
+    const backendUrl = new URL(import.meta.env.VITE_API_URL);
+    wsHost =
+      backendUrl.hostname === "backend"
+        ? window.location.hostname + ":5000" // use localhost in dev
+        : backendUrl.host; // use the actual public host in prod
+  } catch {
+    wsHost = window.location.host; // fallback for relative URLs
+  }
+
+  const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+  let reconnectTimer;
+
+  const connect = () => {
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log("✅ WebSocket connected:", wsUrl);
+
+      // Optional: resync after reconnect
+      if (selectedElectionId) {
+        handleElectionSelect(selectedElectionId);
+      }
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === "VOTE_UPDATE") {
+          const { electionId, constituencyId, candidateId } = message.payload;
+
+          // Live update logic
+          setSummary((prev) =>
+            prev && Number(electionId) === Number(prev.election.election_id)
+              ? { ...prev, votersVoted: prev.votersVoted + 1 }
+              : prev
+          );
+
+          setConstituencyResults((prev) =>
+            prev.map((r) =>
+              Number(r.id) === Number(candidateId)
+                ? { ...r, votes: r.votes + 1 }
+                : r
+            )
+          );
         }
+      } catch (err) {
+        console.error("⚠️ WebSocket message error:", err);
+      }
+    };
 
-        ws.current = new WebSocket(`${wsProtocol}//${wsHost}`); // MODIFIED: Store in ref
+    socket.onclose = () => {
+      console.warn("⚠️ WebSocket disconnected — retrying in 5s...");
+      reconnectTimer = setTimeout(connect, 5000);
+    };
 
-        ws.current.onopen = () => {
-            console.log("WebSocket connected for live results.");
-        };
+    socket.onerror = (err) => {
+      console.error("⚠️ WebSocket error:", err);
+      socket.close();
+    };
 
-        ws.current.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'VOTE_UPDATE') {
-                    const { electionId, candidateId } = message.payload;
+    ws.current = socket;
+  };
 
-                    // Update state using the functional form, no dependency on selectedElectionId
-                    setSummary(currentSummary => {
-                        // Check against the summary's election ID
-                        if (currentSummary && Number(electionId) === Number(currentSummary.election.election_id)) {
-                            toast.info("New vote received! Turnout updated.");
-                            return { ...currentSummary, votersVoted: currentSummary.votersVoted + 1 };
-                        }
-                        return currentSummary;
-                    });
-
-                    setConstituencyResults(currentResults => {
-                        const candidateExists = currentResults.some(r => Number(r.id) === Number(candidateId));
-                        if (candidateExists) {
-                            const updatedResults = currentResults.map(r => {
-                                if (Number(r.id) === Number(candidateId)) {
-                                    toast.info(`Vote received for ${r.name}!`);
-                                    return { ...r, votes: r.votes + 1 };
-                                }
-                                return r;
-                            });
-                            return updatedResults.sort((a, b) => b.votes - a.votes);
-                        }
-                        return currentResults;
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to parse WebSocket message:", err);
-            }
-        };
-
-        ws.current.onclose = () => {
-            console.log("WebSocket disconnected.");
-        };
-
-        ws.current.onerror = (error) => {
-            console.error("WebSocket error:", error);
-        };
-
-        // Cleanup function
-        return () => {
-            if (ws.current) {
-                ws.current.close();
-                ws.current = null;
-            }
-        };
-    } else {
-        // If page is not active or no election is selected, ensure WS is closed
-        if (ws.current) {
-            ws.current.close();
-            ws.current = null;
-        }
-    }
-  // MODIFIED: Rerun when page becomes active/inactive or election changes
-  }, [isActive, selectedElectionId]); 
-  // ---!! END LIVE UPDATE LOGIC !!---
+  connect();
+  return () => {
+    ws.current?.close();
+    clearTimeout(reconnectTimer);
+  };
+}, [isActive, selectedElectionId]);
 
 
-  // --- NEW: Function to handle the tie-breaker ---
+  // ---- Tie-Breaker ----
   const handleBreakTie = async () => {
-// ... (existing code inside handleBreakTie)
     if (!summary?.tieDetected) return;
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await axios.post(`/admin/results/break-tie`, {
-        electionId: selectedElectionId,
-        tiedParties: summary.tiedParties
-      }, {
-        headers: { Authorization: adminToken }
-      });
+      const res = await axios.post(
+        `/admin/results/break-tie`,
+        {
+          electionId: selectedElectionId,
+          tiedParties: summary.tiedParties,
+        },
+        {
+          headers: { Authorization: adminToken },
+        }
+      );
 
-      // Use toast for notification instead of alert
-      toast.success(`Draw of lots complete! The winner is: ${response.data.winningParty.name}`);
-      // Refresh the summary to show the final winner
+      toast.success(`🎉 Winner decided: ${res.data.winningParty.name}`);
       handleElectionSelect(selectedElectionId);
-
-    } catch (err)
- {
-      setError('Failed to resolve the tie. Please try again.');
+    } catch (err) {
+      setError("Failed to resolve tie.");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-
+  // ---- UI ----
   return (
-// ... (existing code inside ResultsPage return)
     <div>
       <h2 className="text-3xl font-bold mb-6">View Election Results</h2>
-      
+
+      {/* Election Selector */}
       <div className="mb-8">
         <label className="block text-lg font-medium text-gray-700">Select an Election</label>
         <select
@@ -639,7 +616,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
           className="w-full p-3 border border-gray-300 rounded mt-1 text-lg"
         >
           <option value="">-- Choose an Election --</option>
-          {elections.map(e => (
+          {elections.map((e) => (
             <option key={e.election_id} value={e.election_id}>
               {e.name} (ID: {e.election_id})
             </option>
@@ -652,6 +629,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
 
       {summary && (
         <div className="space-y-8">
+          {/* Voter Turnout */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="font-bold text-xl mb-4">Voter Turnout</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -660,61 +638,94 @@ const ResultsPage = ({ adminToken, isActive }) => {
             </div>
           </div>
 
+          {/* Final Results */}
           {summary.isElectionOver ? (
             <>
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="font-bold text-xl mb-4 text-green-700">Final Results</h3>
-                
-                {/* --- NEW: Tie-breaker UI --- */}
+
                 {summary.tieDetected ? (
                   <div className="text-center p-4 bg-orange-100 rounded-lg">
                     <h4 className="font-bold text-lg text-orange-800">A Tie Has Occurred!</h4>
-                    <p className="text-orange-700 my-2">The following parties have the same number of votes:</p>
                     <ul className="font-semibold">
-                      {summary.tiedParties.map(p => <li key={p.name}>{p.name} ({p.votes.toLocaleString()} votes)</li>)}
+                      {summary.tiedParties.map((p) => (
+                        <li key={p.name}>
+                          {p.name} ({p.votes.toLocaleString()} votes)
+                        </li>
+                      ))}
                     </ul>
-                    <button onClick={handleBreakTie} className="mt-4 bg-orange-500 text-white font-bold py-2 px-4 rounded hover:bg-orange-600">
-                      Initiate Draw of Lots to Decide Winner
+                    <button
+                      onClick={handleBreakTie}
+                      className="mt-4 bg-orange-500 text-white font-bold py-2 px-4 rounded hover:bg-orange-600"
+                    >
+                      Initiate Draw of Lots
                     </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <StatCard title="Winning Party (Overall)" value={summary.winningParty.name} icon="🏆" />
-                      <StatCard title="Total Votes for Winner" value={summary.winningParty.votes.toLocaleString()} icon="⭐" />
+                    <StatCard
+                      title="Winning Party (Overall)"
+                      value={summary.winningParty.name}
+                      icon="🏆"
+                    />
+                    <StatCard
+                      title="Total Votes for Winner"
+                      value={summary.winningParty.votes.toLocaleString()}
+                      icon="⭐"
+                    />
                   </div>
                 )}
               </div>
 
+              {/* Constituency Breakdown */}
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="font-bold text-xl mb-4">Constituency Breakdown</h3>
                 <form onSubmit={handleFetchConstituencyResults} className="flex items-end gap-4 mb-4">
-                    <div className="flex-grow">
-                      <label className="block text-sm font-medium text-gray-700">Constituency ID</label>
-                      <input
-                        type="number"
-                        value={constituencyId}
-                        onChange={e => setConstituencyId(e.target.value)}
-                        placeholder="Enter ID (e.g., 101)"
-                        className="w-full p-2 border border-gray-300 rounded mt-1"
-                      />
-                    </div>
-                    <button type="submit" className="bg-gray-600 text-white p-2 rounded hover:bg-gray-700">Fetch</button>
+                  <div className="flex-grow">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Constituency ID
+                    </label>
+                    <input
+                      type="number"
+                      value={constituencyId}
+                      onChange={(e) => setConstituencyId(e.target.value)}
+                      placeholder="Enter ID (e.g., 101)"
+                      className="w-full p-2 border border-gray-300 rounded mt-1"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="bg-gray-600 text-white p-2 rounded hover:bg-gray-700"
+                  >
+                    Fetch
+                  </button>
                 </form>
 
                 {constituencyResults.length > 0 && (
                   <div className="space-y-3">
-                    <h4 className="font-semibold">Results for Constituency #{constituencyId}</h4>
+                    <h4 className="font-semibold">
+                      Results for Constituency #{constituencyId}
+                    </h4>
                     {constituencyResults.map((c, i) => (
-                      <div key={c.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      >
                         <div className="flex items-center">
                           <span className="font-bold w-8">{i + 1}.</span>
-                          <img src={`${apiUrl}${c.symbol}`} alt="" className="w-8 h-8 object-contain mr-3"/>
+<img
+  src={c.symbol.startsWith('/api/symbols/') ? c.symbol : `/api/symbols/${c.symbol}`}
+  alt={c.party_name}
+  className="w-8 h-8 object-contain mr-3"
+/>
                           <div>
                             <p className="font-semibold">{c.name}</p>
                             <p className="text-sm text-gray-500">{c.party_name}</p>
                           </div>
                         </div>
-                        <span className="font-bold text-lg">{c.votes.toLocaleString()} Votes</span>
+                        <span className="font-bold text-lg">
+                          {c.votes.toLocaleString()} Votes
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -723,7 +734,9 @@ const ResultsPage = ({ adminToken, isActive }) => {
             </>
           ) : (
             <div className="bg-yellow-100 p-6 rounded-lg shadow-md text-center">
-              <p className="font-semibold text-yellow-800">The election is still in progress. Final results and breakdowns will be available after it ends.</p>
+              <p className="font-semibold text-yellow-800">
+                The election is still in progress. Final results will appear after it ends.
+              </p>
             </div>
           )}
         </div>

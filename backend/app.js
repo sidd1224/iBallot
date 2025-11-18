@@ -1,6 +1,7 @@
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
+const path = require("path"); // ✅ MISSING IMPORT FIXED
 require("dotenv").config();
 const rateLimit = require("express-rate-limit");
 const userAuth = require("./middleware/userAuth");
@@ -32,11 +33,11 @@ const authLimiter = rateLimit({
 app.use(express.json());
 
 // --- STATIC FILES ---
-// Serve all static assets
-app.use(express.static("public"));
+// ✅ Serve general public assets first
+app.use(express.static(path.join(__dirname, "public")));
 
-// ✅ Serve candidate symbols specifically via /api/symbols/*
-app.use("/api/symbols", express.static("public/symbols"));
+// ✅ Serve candidate symbols specifically
+app.use("/symbols/", express.static(path.join(__dirname, "public/symbols")));
 
 // --- CORS CONFIGURATION ---
 const defaultOrigins = [
@@ -55,7 +56,7 @@ console.log("✅ Allowed Origins:", allowedOrigins);
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // allow curl, mobile, etc.
+      if (!origin) return callback(null, true); // Allow curl/postman
       if (allowedOrigins.includes(origin)) return callback(null, true);
 
       console.warn(`❌ Blocked CORS request from origin: ${origin}`);
@@ -64,7 +65,6 @@ app.use(
     credentials: true,
   })
 );
-
 
 // --- USER ROUTES ---
 // Public routes
@@ -85,5 +85,10 @@ app.use("/admin/elections", adminAuth, require("./routes/admin/elections"));
 app.use("/admin/candidates", adminAuth, require("./routes/admin/candidates"));
 app.use("/admin/results", adminAuth, require("./routes/admin/results"));
 app.use("/admin/eci-data", adminAuth, require("./routes/admin/eciData"));
+
+// ✅ Fallback route for undefined endpoints
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
 
 module.exports = app;

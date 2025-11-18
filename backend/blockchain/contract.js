@@ -12,6 +12,7 @@ const ADMIN_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
 let contract;
 let provider;
 let wallet;
+let broadcastRef = null; // ✅ To store WebSocket broadcast function reference
 
 try {
   if (!CONTRACT_ADDRESS || !ADMIN_PRIVATE_KEY) {
@@ -25,60 +26,60 @@ try {
 
   contract = new Contract(address, abi, wallet);
 
+
+
   console.log("✅ Contract loaded at:", address);
 
-  // ---!! ADD THIS DIAGNOSTIC CHECK !!---
-  if (typeof contract.candidateCounter === 'function') {
-      console.log("✅ candidateCounter function IS available on the contract object.");
+  // --- Diagnostic check to confirm ABI is loaded properly ---
+  if (typeof contract.candidateCounter === "function") {
+    console.log("✅ candidateCounter function IS available on the contract object.");
   } else {
-      console.error("❌ candidateCounter function IS NOT available on the contract object!");
-      // Log the functions ethers actually sees based on the loaded ABI
-      console.log("   Functions detected by ethers:", Object.keys(contract.interface.functions));
+    console.error("❌ candidateCounter function IS NOT available on the contract object!");
+    console.log("   Functions detected by ethers:", Object.keys(contract.interface.functions));
   }
-  // ---!! END DIAGNOSTIC CHECK !!---
-
+  // -----------------------------------------------------------
 
 } catch (err) {
   console.error("❌ Failed to initialize blockchain components:", err.message);
   process.exit(1);
 }
 
-
 /**
  * Starts listening for VoteCast events on the smart contract.
- * When an event is received, it broadcasts the data to connected clients.
- * @param {function} broadcast - The function to call to broadcast messages.
+ * When an event is received, it broadcasts the data to connected clients (e.g., admin dashboards).
+ * @param {function} broadcast - Function to call to broadcast messages over WebSocket.
  */
 function startVoteListener(broadcast) {
-  console.log("👂 Starting to listen for VoteCast events...");
+  broadcastRef = broadcast; // Store broadcast reference
 
-  contract.on("VoteCast", (electionId, voterHash, candidateId, event) => {
-    console.log(`🗳️  VoteCast Event Received:
-        Election ID: ${electionId.toString()}
-        Candidate ID: ${candidateId.toString()}
-        Transaction: ${event.log.transactionHash}`);
+  contract.on("VoteCast", (electionId, constituencyId, candidateId, voterHash, event) => {
+    console.log(`🗳️ VoteCast detected for Election ${electionId} -> Candidate ${candidateId}`);
 
-    // When a vote comes in, we want to send the new vote counts to the frontend.
-    // We create an object that the frontend can easily use to update the UI.
-    const updateData = {
-      type: 'VOTE_UPDATE',
-      payload: {
-        electionId: Number(electionId),
-        candidateId: Number(candidateId),
-      }
-    };
-
-    // Broadcast this update to all connected frontend clients
-    broadcast(updateData);
+    // 🔄 Broadcast to all connected WebSocket clients (admin dashboards)
+    if (broadcastRef) {
+      broadcastRef({
+        type: "VOTE_UPDATE",
+        payload: {
+          electionId: Number(electionId),
+          constituencyId: Number(constituencyId),
+          candidateId: Number(candidateId),
+          timestamp: Date.now(),
+        },
+      });
+      console.log(`📡 Broadcasted VOTE_UPDATE for Election ${electionId}`);
+    } else {
+      console.warn("⚠️ No WebSocket broadcast reference found — skipping broadcast.");
+    }
   });
 
-  // Removed the contract.on("error",...) listener as it caused issues previously
+
+
+  console.log("👂 Listening for VoteCast events...");
 }
 
 // Export everything that's needed by other parts of the app
 module.exports = {
   contract,
-  provider, // Export provider if needed elsewhere
-  startVoteListener, // Export the listener function
+  provider,
+  startVoteListener,
 };
-

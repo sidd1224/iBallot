@@ -18,23 +18,33 @@ require("dotenv").config();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadPath = "";
-    if (file.fieldname === 'candidatesCsv') {
-      uploadPath = 'uploads/';
-    } else if (file.fieldname === 'symbols') {
-      uploadPath = 'public/symbols/';
+    if (file.fieldname === "candidatesCsv") {
+      uploadPath = "uploads/";
+    } else if (file.fieldname === "symbols") {
+      uploadPath = "public/symbols/";
     }
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    if (file.fieldname === 'candidatesCsv') {
-      cb(null, Date.now() + '-' + file.originalname);
-    } else if (file.fieldname === 'symbols') {
-      // Use the original filename for symbols to match CSV references
-      cb(null, file.originalname);
+    if (file.fieldname === "candidatesCsv") {
+      cb(null, Date.now() + "-" + file.originalname);
+    } else if (file.fieldname === "symbols") {
+      const uploadDir = path.join("public", "symbols");
+      const targetPath = path.join(uploadDir, file.originalname);
+
+      // ✅ Check if the symbol file already exists
+      if (fs.existsSync(targetPath)) {
+        console.log(`⚠️ Symbol already exists, skipping upload: ${file.originalname}`);
+        // Instead of error, skip by returning the same filename
+        cb(null, file.originalname);
+      } else {
+        cb(null, file.originalname);
+      }
     }
-  }
+  },
 });
+
 
 const upload = multer({ storage: storage });
 
@@ -137,7 +147,7 @@ router.post(
 
             // Assign the next available candidate ID for this constituency
             const candidateId = constituencyCounters[constituencyId];
-            const symbolPath = symbol ? `/symbols/${path.basename(symbol)}` : null; // Use basename for safety
+            const symbolPath = symbol ? `/api/symbols/${path.basename(symbol)}` : null; // Use basename for safety
 
             // Insert into DB
             await client.query(

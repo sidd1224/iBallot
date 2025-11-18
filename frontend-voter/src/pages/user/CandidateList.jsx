@@ -17,7 +17,6 @@ const CandidateList = () => {
   // ✅ Always use sessionStorage (not localStorage)
   const user = JSON.parse(sessionStorage.getItem("user"));
   const token = sessionStorage.getItem("token");
-  const constituencyData = JSON.parse(sessionStorage.getItem("constituency"));
 
   // 🧠 Redirect back to login if session expired
   useEffect(() => {
@@ -25,39 +24,52 @@ const CandidateList = () => {
       console.warn("⚠️ Session expired or missing user/token — redirecting to login");
       navigate("/login");
     }
-  }, [user, token, navigate]);
+  }, [navigate]); // ✅ No user/token in deps → prevents re-trigger loop
 
-  // ✅ Fetch candidates from backend
+  // ✅ Fetch candidates (single trigger fix + proper image URL)
   useEffect(() => {
+    let isMounted = true;
+
     const fetchCandidates = async () => {
       try {
-        if (!token || !user?.username) {
-          setError("Missing token or user info. Please log in again.");
+        if (!token || !user?.username || !electionId || !assemblyId) {
+          setError("Missing required information.");
           setLoading(false);
           return;
         }
 
-        const response = await axios.get(`/api/candidates/${electionId}/${assemblyId}`, {
+        const res = await axios.get(`/api/candidates/${electionId}/${assemblyId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log("✅ Candidates fetched:", response.data);
-        setCandidates(response.data.candidates || []);
+        if (isMounted) {
+          console.log("✅ Candidates fetched:", res.data);
+          const formatted = (res.data.candidates || []).map((c) => ({
+            ...c,
+            // ✅ Ensure backend image path always resolves properly
+            symbol: c.symbol ? `/api/symbols/${c.symbol.split("/").pop()}` : null,
+          }));
+          setCandidates(formatted);
+        }
       } catch (err) {
         console.error("❌ Error fetching candidates:", err);
         if (err.response?.status === 401) {
-          // Token expired or unauthorized → force re-login
           sessionStorage.clear();
           navigate("/login");
+        } else {
+          setError("Failed to fetch candidates. Please try again later.");
         }
-        setError("Failed to fetch candidates. Please try again later.");
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchCandidates();
-  }, [electionId, assemblyId, token, user]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [electionId, assemblyId]); // ✅ Only trigger when electionId or assemblyId changes
 
   // ✅ Handle vote submission
   const handleVoteSubmit = async (e) => {
@@ -90,7 +102,7 @@ const CandidateList = () => {
       );
 
       alert(`✅ Vote cast successfully!\nTransaction Hash: ${response.data.txHash}`);
-      sessionStorage.clear(); // Optional — force logout after voting
+      sessionStorage.clear();
       navigate("/login");
     } catch (err) {
       console.error("❌ Vote error:", err);
@@ -136,21 +148,14 @@ const CandidateList = () => {
               >
                 {/* Symbol */}
                 <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                  {candidate.symbol && (
-<img
-  src={
-    candidate.symbol
-      ? candidate.symbol.startsWith("http")
-        ? candidate.symbol
-        : candidate.symbol.startsWith("/api")
-          ? candidate.symbol
-          : `/api${candidate.symbol.startsWith("/") ? candidate.symbol : `/${candidate.symbol}`}`
-      : "/placeholder.png" // optional fallback image
-  }
-  alt={`${candidate.party_name} symbol`}
-  className="w-full h-full object-contain p-1"
-/>
-
+                  {candidate.symbol ? (
+                    <img
+                      src={candidate.symbol}
+                      alt={`${candidate.party_name} symbol`}
+                      className="w-full h-full object-contain p-1"
+                    />
+                  ) : (
+                    <span className="text-gray-400 text-sm">No Symbol</span>
                   )}
                 </div>
 

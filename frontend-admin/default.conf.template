@@ -1,27 +1,21 @@
-# ------------------------------
-# Cloud Run Nginx Config (LF only)
-# ------------------------------
-
-types {
-    application/manifest+json webmanifest;
-    application/json json;
-}
+# =============================
+# Dynamic Nginx Proxy Template
+# =============================
 
 server {
-    listen ${PORT};
+    listen 8080;
     server_name _;
 
     root /usr/share/nginx/html;
-    index index.html index.htm;
+    index index.html;
 
-    # Serve frontend routes
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
+    # =========================
+    # ✅ API & WebSocket Proxies
+    # =========================
 
-    # ✅ NEW: Proxy API requests to backend service
+    # Proxy Admin API
     location /admin/ {
-        proxy_pass http://backend:8080;
+        proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -29,28 +23,62 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Cache static assets aggressively
-    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
-        expires 1y;
-        access_log off;
-        add_header Cache-Control "public, max-age=31536000, immutable";
+    # ✅ Proxy Candidate Symbols (must be BEFORE static regex)
+    location /symbols/ {
+        proxy_pass ${VITE_API_URL}/api/symbols/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Service Worker — must not be cached
+    # ✅ Proxy WebSocket connections
+    location /ws/ {
+        proxy_pass ${VITE_API_URL}/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+
+    # =========================
+    # ✅ Static Assets & PWA
+    # =========================
+
+    # Static cache rule — keep BELOW API proxies
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        access_log off;
+    }
+
+    # Service Worker (prevent caching)
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
     }
 
-    # PWA manifest — must not be cached
+    # Web App Manifest (prevent caching)
     location = /manifest.webmanifest {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
     }
 
-    # SPA fallback (React Router)
+    # =========================
+    # ✅ React SPA Fallback
+    # =========================
+
+    # Keep this LAST so it doesn’t override other routes
+    location / {
+        try_files $uri /index.html;
+    }
+
     error_page 404 /index.html;
 
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
+    # Enable Gzip Compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+    gzip_min_length 256;
 }
