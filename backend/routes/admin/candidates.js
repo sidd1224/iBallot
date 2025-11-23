@@ -7,14 +7,12 @@ const path = require("path");
 const router = express.Router();
 const adminAuth = require("../../middleware/adminAuth");
 const pool = require("../../database/db");
-// --- FIX: Import the contract instance directly ---
 const { contract } = require("../../blockchain/contract");
-// Remove JsonRpcProvider and Wallet imports as they are no longer needed here
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
 
 require("dotenv").config();
 
-// Multer storage configuration (remains the same)
+// --- 1. Storage Config (Only determines path/name) ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadPath = "";
@@ -23,30 +21,49 @@ const storage = multer.diskStorage({
     } else if (file.fieldname === "symbols") {
       uploadPath = "public/symbols/";
     }
-    fs.mkdirSync(uploadPath, { recursive: true });
+    // Ensure dir exists
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     if (file.fieldname === "candidatesCsv") {
       cb(null, Date.now() + "-" + file.originalname);
     } else if (file.fieldname === "symbols") {
-      const uploadDir = path.join("public", "symbols");
-      const targetPath = path.join(uploadDir, file.originalname);
-
-      // ✅ Check if the symbol file already exists
-      if (fs.existsSync(targetPath)) {
-        console.log(`⚠️ Symbol already exists, skipping upload: ${file.originalname}`);
-        // Instead of error, skip by returning the same filename
-        cb(null, file.originalname);
-      } else {
-        cb(null, file.originalname);
-      }
+      // Just return the name here. The filtering happens below.
+      cb(null, file.originalname);
     }
   },
 });
 
+// --- 2. File Filter (CRITICAL FIX) ---
+// This function runs BEFORE the file is written. 
+// If we return false, Multer skips the file entirely (no permission errors).
+const fileFilter = (req, file, cb) => {
+  if (file.fieldname === "symbols") {
+    const uploadDir = path.join("public", "symbols");
+    const targetPath = path.join(uploadDir, file.originalname);
 
-const upload = multer({ storage: storage });
+    if (fs.existsSync(targetPath)) {
+      console.log(`⚠️ Symbol already exists, skipping write: ${file.originalname}`);
+      // ✅ Return FALSE to skip this file safely
+      cb(null, false);
+    } else {
+      // ✅ Return TRUE to accept and write the file
+      cb(null, true);
+    }
+  } else {
+    // Always accept CSVs
+    cb(null, true);
+  }
+};
+
+// Apply the filter
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter 
+});
 
 // Merged /upload route
 router.post(
@@ -54,7 +71,7 @@ router.post(
   adminAuth,
   upload.fields([
     { name: 'candidatesCsv', maxCount: 1 },
-    { name: 'symbols', maxCount: 100 } // Allow uploading multiple symbol files
+    { name: 'symbols', maxCount: 100 }
   ]),
   async (req, res) => {
 
@@ -71,11 +88,6 @@ router.post(
     }
     const filePath = csvFile.path;
 
-    // --- FIX: Remove redundant provider/signer creation ---
-    // const provider = new JsonRpcProvider(process.env.RPC_URL);
-    // const signer = contract.connect(new Wallet(process.env.RELAYER_PRIVATE_KEY, provider));
-    // We will use the imported 'contract' directly as it's already connected to the admin wallet
-
     const results = [];
     const client = await pool.connect();
 
@@ -85,55 +97,45 @@ router.post(
       .on("end", async () => {
         let added = 0, failed = 0, skipped = 0;
         const newCandidatesByConstituency = {};
-        const constituencyCounters = {}; // Keep track of the next ID for each constituency
+        const constituencyCounters = {}; 
 
         try {
           await client.query("BEGIN");
 
-          // 1. Pre-fetch starting candidate counters from the blockchain ONCE per constituency
           console.log("Fetching initial candidate counters...");
           const uniqueConstituencyIds = [...new Set(results.map(row => parseInt(row.assemblyId || row.parliamentaryId)))].filter(id => !isNaN(id));
 
           for (const constituencyId of uniqueConstituencyIds) {
              try {
-                // ✅ Use BigInt for consistency with retrieval logic
                 const countBigInt = await retryBlockchainCall(() => contract.candidateCounter(BigInt(electionId), BigInt(constituencyId)));
-                const count = Number(countBigInt); // Convert BigInt to Number
+                const count = Number(countBigInt); 
                 constituencyCounters[constituencyId] = count;
                 console.log(`Initial counter for constituency ${constituencyId}: ${count}`);
              } catch (fetchErr) {
                 console.error(`Failed to fetch counter for constituency ${constituencyId}: ${fetchErr.message}`);
-                // Handle error - maybe skip this constituency or fail the whole batch?
-                // For now, let's throw to indicate a critical setup failure.
                  throw new Error(`Could not fetch initial candidate count for constituency ${constituencyId}. Check contract and network.`);
              }
           }
           console.log("Finished fetching counters.");
 
-
-          // 2. Process CSV, validate, and insert all candidates into DB transactionally
           console.log(`Processing ${results.length} rows from CSV...`);
           for (const row of results) {
-            // Determine constituency ID based on election type
             const constituencyIdRaw = electionType === 'ac' ? row.assemblyId : row.parliamentaryId;
             const constituencyId = parseInt(constituencyIdRaw);
             const { candidateName, party_name, symbol } = row;
 
-            // Basic validation
             if (isNaN(constituencyId) || !candidateName) {
               console.warn("Skipping row due to missing/invalid constituencyId or candidateName:", row);
               failed++;
               continue;
             }
 
-            // Check if this constituency counter was fetched successfully
             if (constituencyCounters[constituencyId] === undefined) {
                  console.warn(`Skipping candidate for constituency ${constituencyId} as initial counter failed.`);
                  failed++;
                  continue;
             }
 
-            // Check if candidate already exists in the database FOR THIS BATCH (optional but good practice)
              const existingCandidate = await client.query(
                `SELECT id FROM candidates WHERE election_id = $1 AND constituency_id = $2 AND candidate_name = $3`,
                [electionId, constituencyId, candidateName]
@@ -145,37 +147,30 @@ router.post(
                continue;
              }
 
-            // Assign the next available candidate ID for this constituency
             const candidateId = constituencyCounters[constituencyId];
             
-            // ✅ FIX: Save ONLY the filename to the database (e.g., "part.png")
-            // This respects your CSV structure and avoids saving paths like "/symbols/part.png"
+            // Save ONLY the filename
             const symbolPath = symbol ? path.basename(symbol) : null; 
             if (symbolPath) console.log(`   -> Saving symbol filename for ${candidateName}: ${symbolPath}`);
 
-            // Insert into DB
             await client.query(
               `INSERT INTO candidates (election_id, candidate_id, candidate_name, party_name, symbol, constituency_id) VALUES ($1, $2, $3, $4, $5, $6)`,
               [electionId, candidateId, candidateName, party_name, symbolPath, constituencyId]
             );
 
-            // Group candidates by constituency for batch blockchain transaction
             if (!newCandidatesByConstituency[constituencyId]) {
               newCandidatesByConstituency[constituencyId] = [];
             }
             newCandidatesByConstituency[constituencyId].push(candidateName);
 
-            // Increment the counter for the next candidate in this constituency
             constituencyCounters[constituencyId]++;
             added++;
           }
           console.log("Finished processing CSV rows.");
 
-          // 3. Commit DB changes *before* sending blockchain transactions
           await client.query("COMMIT");
           console.log("Database changes committed.");
 
-          // 4. Send batch transactions to blockchain sequentially per constituency
           console.log("Starting sequential blockchain batch transactions...");
           for (const constituencyIdStr of Object.keys(newCandidatesByConstituency)) {
             const names = newCandidatesByConstituency[constituencyIdStr];
@@ -184,21 +179,16 @@ router.post(
             if (names.length > 0) {
               console.log(`Sending batch for constituency ${constituencyId} (${names.length} candidates)...`);
               try {
-                // --- FIX: Use the imported 'contract' directly ---
-                // ✅ Use BigInt for electionId and constituencyId
                 const tx = await retryBlockchainCall(() =>
                   contract.addCandidates(BigInt(electionId), BigInt(constituencyId), names)
                 );
                 console.log(`Transaction submitted for constituency ${constituencyId}: ${tx.hash}`);
-                // Wait for THIS transaction to be mined before starting the next loop iteration
                 const receipt = await tx.wait();
                 console.log(`Batch for constituency ${constituencyId} confirmed. Gas used: ${receipt.gasUsed.toString()}`);
               } catch (blockchainErr) {
                  console.error(`❌ Blockchain transaction FAILED for constituency ${constituencyId}:`, blockchainErr.message);
-                 // Decide how to handle: maybe revert DB changes? Or just report error?
-                 // For now, we'll just report and continue, but mark as failed.
-                 failed += names.length; // Assume all candidates in this failed batch didn't make it to the contract
-                 added -= names.length;  // Adjust the 'added' count
+                 failed += names.length; 
+                 added -= names.length; 
               }
             }
           }
@@ -214,13 +204,12 @@ router.post(
            console.error("❌ Rolling back database transaction due to error:", err);
            try { await client.query("ROLLBACK"); } catch (rbErr) { console.error("Rollback failed:", rbErr); }
 
-           failed = results.length - skipped; // A simplification for reporting
-           added = 0; // Since we rolled back or failed blockchain update
+           failed = results.length - skipped; 
+           added = 0; 
 
            console.error("❌ Failed to process candidates:", err.message);
            res.status(500).json({ error: "Failed to process candidates", details: err.message, added, skipped, failed });
         } finally {
-          // Clean up the uploaded CSV file
           if (fs.existsSync(filePath)) {
             fs.unlink(filePath, (unlinkErr) => {
               if (unlinkErr) console.error("Error deleting temp CSV file:", unlinkErr);
@@ -231,9 +220,8 @@ router.post(
         }
       })
       .on("error", (err) => {
-        // Handle errors during CSV parsing itself
         console.error("❌ Error reading CSV stream:", err);
-        client.release(); // Ensure client is released even on stream error
+        client.release();
         if (fs.existsSync(filePath)) {
            fs.unlink(filePath, (unlinkErr) => {
               if (unlinkErr) console.error("Error deleting temp CSV file:", unlinkErr);
