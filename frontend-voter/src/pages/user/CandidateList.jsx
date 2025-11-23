@@ -44,11 +44,20 @@ const CandidateList = () => {
 
         if (isMounted) {
           console.log("✅ Candidates fetched:", res.data);
-          const formatted = (res.data.candidates || []).map((c) => ({
-            ...c,
-            // ✅ Ensure backend image path always resolves properly
-            symbol: c.symbol ? `/api/symbols/${c.symbol.split("/").pop()}` : null,
-          }));
+          const formatted = (res.data.candidates || []).map((c) => {
+            // ✅ FIX: Robust Path Handling
+            // If DB has "part.png" -> symbolUrl becomes "/symbols/part.png"
+            // If DB has "/symbols/part.png" -> symbolUrl becomes "/symbols/part.png"
+            // This safely handles your DB format of strictly filenames.
+            const symbolUrl = c.symbol 
+              ? `/symbols/${c.symbol.split("/").pop()}` 
+              : null;
+
+            return {
+              ...c,
+              symbol: symbolUrl,
+            };
+          });
           setCandidates(formatted);
         }
       } catch (err) {

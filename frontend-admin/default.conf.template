@@ -24,8 +24,8 @@ server {
     }
 
     # ✅ Proxy Candidate Symbols (must be BEFORE static regex)
-    location /symbols/ {
-        proxy_pass ${VITE_API_URL}/api/symbols/;
+    location ^~ /symbols/ {
+        proxy_pass ${VITE_API_URL}/symbols/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

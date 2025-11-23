@@ -493,85 +493,98 @@ const ResultsPage = ({ adminToken, isActive }) => {
     }
   };
 
-  // ---- WebSocket Live Updates (Auto-Reconnect) ----
+
 // ---- WebSocket Live Updates (Auto-Reconnect + Dynamic Backend URL) ----
-useEffect(() => {
-  if (!isActive || !selectedElectionId) return;
+  useEffect(() => {
+    // 1. Stop if tab is not active or no election selected
+    if (!isActive || !selectedElectionId) return;
 
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  let wsHost;
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    let wsHost;
 
-  try {
-    // Try to parse VITE_API_URL (e.g. http://backend:5000 or https://api.iballot.com)
-    const backendUrl = new URL(import.meta.env.VITE_API_URL);
-    wsHost =
-      backendUrl.hostname === "backend"
-        ? window.location.hostname + ":5000" // use localhost in dev
-        : backendUrl.host; // use the actual public host in prod
-  } catch {
-    wsHost = window.location.host; // fallback for relative URLs
-  }
+    try {
+      const backendUrl = new URL(import.meta.env.VITE_API_URL);
+      wsHost =
+        backendUrl.hostname === "backend"
+          ? window.location.hostname + ":5000"
+          : backendUrl.host;
+    } catch {
+      wsHost = window.location.host;
+    }
 
-  const wsUrl = `${wsProtocol}//${wsHost}/ws`;
-  let reconnectTimer;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+    let reconnectTimer;
+    
+    // ✅ FIX PART 1: Variable to track if this specific effect is still valid
+    let isMounted = true; 
 
-  const connect = () => {
-    const socket = new WebSocket(wsUrl);
+    const connect = () => {
+      const socket = new WebSocket(wsUrl);
 
-    socket.onopen = () => {
-      console.log("✅ WebSocket connected:", wsUrl);
-
-      // Optional: resync after reconnect
-      if (selectedElectionId) {
-        handleElectionSelect(selectedElectionId);
-      }
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === "VOTE_UPDATE") {
-          const { electionId, constituencyId, candidateId } = message.payload;
-
-          // Live update logic
-          setSummary((prev) =>
-            prev && Number(electionId) === Number(prev.election.election_id)
-              ? { ...prev, votersVoted: prev.votersVoted + 1 }
-              : prev
-          );
-
-          setConstituencyResults((prev) =>
-            prev.map((r) =>
-              Number(r.id) === Number(candidateId)
-                ? { ...r, votes: r.votes + 1 }
-                : r
-            )
-          );
+      socket.onopen = () => {
+        // ✅ FIX PART 2: Check mounting before doing anything
+        if (!isMounted) {
+            socket.close();
+            return;
         }
-      } catch (err) {
-        console.error("⚠️ WebSocket message error:", err);
-      }
+        console.log("✅ WebSocket connected:", wsUrl);
+        
+        // ❌ CRITICAL FIX: Removed 'handleElectionSelect(selectedElectionId)'
+        // We do NOT need to re-fetch data here. The user already clicked the dropdown,
+        // so the data is already loading. Fetching again here causes the race condition.
+      };
+
+      socket.onmessage = (event) => {
+        if (!isMounted) return; // Ignore messages if we switched elections
+
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "VOTE_UPDATE") {
+            const { electionId, constituencyId, candidateId } = message.payload;
+
+            setSummary((prev) =>
+              prev && Number(electionId) === Number(prev.election.election_id)
+                ? { ...prev, votersVoted: prev.votersVoted + 1 }
+                : prev
+            );
+
+            setConstituencyResults((prev) =>
+              prev.map((r) =>
+                Number(r.id) === Number(candidateId)
+                  ? { ...r, votes: r.votes + 1 }
+                  : r
+              )
+            );
+          }
+        } catch (err) {
+          console.error("⚠️ WebSocket message error:", err);
+        }
+      };
+
+      socket.onclose = () => {
+        if (!isMounted) return;
+        console.warn("⚠️ WebSocket disconnected — retrying in 5s...");
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+
+      socket.onerror = (err) => {
+        if (!isMounted) return;
+        console.error("⚠️ WebSocket error:", err);
+        socket.close();
+      };
+
+      ws.current = socket;
     };
 
-    socket.onclose = () => {
-      console.warn("⚠️ WebSocket disconnected — retrying in 5s...");
-      reconnectTimer = setTimeout(connect, 5000);
+    connect();
+
+    // ✅ FIX PART 3: Cleanup function
+    return () => {
+      isMounted = false; // Mark this connection attempt as "dead"
+      ws.current?.close(); // Close the socket immediately
+      clearTimeout(reconnectTimer);
     };
-
-    socket.onerror = (err) => {
-      console.error("⚠️ WebSocket error:", err);
-      socket.close();
-    };
-
-    ws.current = socket;
-  };
-
-  connect();
-  return () => {
-    ws.current?.close();
-    clearTimeout(reconnectTimer);
-  };
-}, [isActive, selectedElectionId]);
+  }, [isActive, selectedElectionId]); // Dependencies remain the same
 
 
   // ---- Tie-Breaker ----
@@ -714,9 +727,13 @@ useEffect(() => {
                         <div className="flex items-center">
                           <span className="font-bold w-8">{i + 1}.</span>
 <img
-  src={c.symbol.startsWith('/api/symbols/') ? c.symbol : `/api/symbols/${c.symbol}`}
+  // ✅ FIX: Use /symbols/ prefix and strip any extra path info from DB
+  src={c.symbol ? `/symbols/${c.symbol.split('/').pop()}` : ''}
   alt={c.party_name}
   className="w-8 h-8 object-contain mr-3"
+  onError={(e) => {
+      e.target.style.display = 'none'; // Hide if broken
+  }}
 />
                           <div>
                             <p className="font-semibold">{c.name}</p>

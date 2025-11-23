@@ -20,27 +20,6 @@ router.get("/:electionId/:constituencyId", async (req, res) => {
       return res.status(400).json({ error: "Election ID and Constituency ID must be valid numbers." });
     }
 
-    // ---!! ADD DIAGNOSTIC CHECK HERE (INSIDE HANDLER) !!---
-    console.log(`[candidateList Route - ${electionId}/${constituencyId}] Checking contract object...`);
-    if (contract && typeof contract.candidateCounter === 'function') {
-        console.log(`[candidateList Route - ${electionId}/${constituencyId}] ✅ candidateCounter IS available before call.`);
-    } else {
-        console.error(`[candidateList Route - ${electionId}/${constituencyId}] ❌ candidateCounter IS NOT available before call!`);
-        // Log details about the contract object if it's problematic
-        if (!contract) {
-             console.error("   Contract object itself is undefined or null!");
-        } else {
-             console.error("   Contract object exists, checking interface...");
-             if(contract.interface) {
-                 console.log("   Functions detected by ethers:", Object.keys(contract.interface.functions));
-             } else {
-                 console.error("   Contract object has no 'interface' property.");
-             }
-        }
-        return res.status(500).json({ error: "Blockchain contract interaction failed (candidateCounter missing)." });
-    }
-    // ---!! END DIAGNOSTIC CHECK !!---
-
     client = await pool.connect();
 
     // 1. Fetch candidate count from the blockchain
@@ -51,31 +30,52 @@ router.get("/:electionId/:constituencyId", async (req, res) => {
     const count = Number(countBigInt);
     console.log(`[candidateList Route - ${electionId}/${constituencyId}] Candidate count from contract: ${count}`);
 
+    // 2. Optimization: Fetch ALL valid DB candidates for this constituency at once
+    // This avoids making N database queries inside the loop
+    const dbResult = await client.query(
+      `SELECT candidate_id, candidate_name, party_name, symbol
+       FROM candidates
+       WHERE election_id = $1 AND constituency_id = $2`,
+      [electionId, constituencyId]
+    );
+
+    // Create a lookup map for faster access: { candidate_id: candidateData }
+    const dbCandidatesMap = {};
+    dbResult.rows.forEach(row => {
+        dbCandidatesMap[row.candidate_id] = row;
+    });
 
     const candidates = [];
     for (let i = 0; i < count; i++) {
-      // 2. Fetch basic candidate data (name) from the blockchain
-      const blockchainCandidate = await retryBlockchainCall(() => contract.candidates(BigInt(electionId), BigInt(constituencyId), BigInt(i)));
+      // 3. Check if this blockchain index exists in our Database
+      const dbData = dbCandidatesMap[i];
 
-      // 3. Fetch additional data (party, symbol) from the database
-      const dbResult = await client.query(
-        `SELECT party_name, symbol
-         FROM candidates
-         WHERE election_id = $1 AND constituency_id = $2 AND candidate_id = $3`,
-        [electionId, constituencyId, i]
-      );
+      if (!dbData) {
+        // ⚠️ If not in DB, it's a "Ghost" candidate (exists on chain, but not in current DB).
+        // We SKIP it to prevent "N/A" duplicates in the UI.
+        console.warn(`[candidateList] Skipping ghost candidate ID ${i} (not found in DB).`);
+        continue;
+      }
 
-      const dbData = dbResult.rows[0] || { party_name: 'N/A', symbol: '' };
+      // 4. Fetch name from blockchain to ensure on-chain validity
+      // (Optional: You could trust dbData.candidate_name for speed, but fetching confirms sync)
+      let blockchainName = dbData.candidate_name; 
+      try {
+          const blockchainCandidate = await retryBlockchainCall(() => contract.candidates(BigInt(electionId), BigInt(constituencyId), BigInt(i)));
+          blockchainName = blockchainCandidate.name;
+      } catch (bcError) {
+          console.warn(`[candidateList] Failed to fetch blockchain details for ID ${i}, using DB name.`);
+      }
 
       candidates.push({
         id: i,
-        name: blockchainCandidate.name,
+        name: blockchainName,
         party_name: dbData.party_name,
         symbol: dbData.symbol || '',
       });
     }
 
-     console.log(`[candidateList Route - ${electionId}/${constituencyId}] Successfully fetched ${candidates.length} candidates.`);
+     console.log(`[candidateList Route - ${electionId}/${constituencyId}] Returning ${candidates.length} valid candidates.`);
     res.json({ candidates });
 
   } catch (err) {
@@ -87,4 +87,3 @@ router.get("/:electionId/:constituencyId", async (req, res) => {
 });
 
 module.exports = router;
-

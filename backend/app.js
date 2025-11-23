@@ -1,7 +1,7 @@
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
-const path = require("path"); // ✅ MISSING IMPORT FIXED
+const path = require("path");
 require("dotenv").config();
 const rateLimit = require("express-rate-limit");
 const userAuth = require("./middleware/userAuth");
@@ -20,26 +20,8 @@ app.use(
 // --- TRUST PROXY (for X-Forwarded-For with NGINX) ---
 app.set("trust proxy", 1);
 
-// --- REQUEST LIMITER (Prevents brute-force login/register attacks) ---
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests from this IP, please try again after 15 minutes" },
-});
-
-// --- MIDDLEWARES ---
-app.use(express.json());
-
-// --- STATIC FILES ---
-// ✅ Serve general public assets first
-app.use(express.static(path.join(__dirname, "public")));
-
-// ✅ Serve candidate symbols specifically
-app.use("/symbols/", express.static(path.join(__dirname, "public/symbols")));
-
 // --- CORS CONFIGURATION ---
+// ✅ MOVED UP: CORS must be defined BEFORE static files to ensure headers are sent for images
 const defaultOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
@@ -65,6 +47,26 @@ app.use(
     credentials: true,
   })
 );
+
+// --- REQUEST LIMITER (Prevents brute-force login/register attacks) ---
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests from this IP, please try again after 15 minutes" },
+});
+
+// --- MIDDLEWARES ---
+app.use(express.json());
+
+// --- STATIC FILES ---
+// ✅ Serve general public assets first
+app.use(express.static(path.join(__dirname, "public")));
+
+// ✅ Serve candidate symbols specifically
+app.use("/symbols/", express.static(path.join(__dirname, "public/symbols")));
+
 
 // --- USER ROUTES ---
 // Public routes

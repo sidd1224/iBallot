@@ -96,7 +96,8 @@ router.post(
 
           for (const constituencyId of uniqueConstituencyIds) {
              try {
-                const countBigInt = await retryBlockchainCall(() => contract.candidateCounter(electionId, constituencyId));
+                // ✅ Use BigInt for consistency with retrieval logic
+                const countBigInt = await retryBlockchainCall(() => contract.candidateCounter(BigInt(electionId), BigInt(constituencyId)));
                 const count = Number(countBigInt); // Convert BigInt to Number
                 constituencyCounters[constituencyId] = count;
                 console.log(`Initial counter for constituency ${constituencyId}: ${count}`);
@@ -133,7 +134,6 @@ router.post(
             }
 
             // Check if candidate already exists in the database FOR THIS BATCH (optional but good practice)
-            // Or rely on DB constraints if defined. For simplicity, we check first.
              const existingCandidate = await client.query(
                `SELECT id FROM candidates WHERE election_id = $1 AND constituency_id = $2 AND candidate_name = $3`,
                [electionId, constituencyId, candidateName]
@@ -147,7 +147,11 @@ router.post(
 
             // Assign the next available candidate ID for this constituency
             const candidateId = constituencyCounters[constituencyId];
-            const symbolPath = symbol ? `/api/symbols/${path.basename(symbol)}` : null; // Use basename for safety
+            
+            // ✅ FIX: Save ONLY the filename to the database (e.g., "part.png")
+            // This respects your CSV structure and avoids saving paths like "/symbols/part.png"
+            const symbolPath = symbol ? path.basename(symbol) : null; 
+            if (symbolPath) console.log(`   -> Saving symbol filename for ${candidateName}: ${symbolPath}`);
 
             // Insert into DB
             await client.query(
@@ -181,8 +185,9 @@ router.post(
               console.log(`Sending batch for constituency ${constituencyId} (${names.length} candidates)...`);
               try {
                 // --- FIX: Use the imported 'contract' directly ---
+                // ✅ Use BigInt for electionId and constituencyId
                 const tx = await retryBlockchainCall(() =>
-                  contract.addCandidates(electionId, constituencyId, names)
+                  contract.addCandidates(BigInt(electionId), BigInt(constituencyId), names)
                 );
                 console.log(`Transaction submitted for constituency ${constituencyId}: ${tx.hash}`);
                 // Wait for THIS transaction to be mined before starting the next loop iteration
@@ -194,8 +199,6 @@ router.post(
                  // For now, we'll just report and continue, but mark as failed.
                  failed += names.length; // Assume all candidates in this failed batch didn't make it to the contract
                  added -= names.length;  // Adjust the 'added' count
-                 // Throwing here would stop processing subsequent constituencies
-                 // throw new Error(`Blockchain transaction failed for constituency ${constituencyId}`);
               }
             }
           }
@@ -209,14 +212,8 @@ router.post(
 
         } catch (err) {
            console.error("❌ Rolling back database transaction due to error:", err);
-           // Ensure rollback happens if any error occurs before/during DB commit OR during blockchain phase
            try { await client.query("ROLLBACK"); } catch (rbErr) { console.error("Rollback failed:", rbErr); }
 
-           // Adjust counts if error happened after DB commit but during blockchain phase
-           // Note: This logic might need refinement depending on exactly when the error occurred.
-           // If the error was *before* COMMIT, added should be 0. If *after* COMMIT but *during* blockchain,
-           // 'added' reflects DB additions, but 'failed' should capture blockchain failures.
-           // The current logic assumes failure means all non-skipped rows failed if the process aborts.
            failed = results.length - skipped; // A simplification for reporting
            added = 0; // Since we rolled back or failed blockchain update
 
@@ -248,4 +245,3 @@ router.post(
 );
 
 module.exports = router;
-
