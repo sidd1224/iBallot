@@ -18,37 +18,49 @@ server {
     location /api/ {
         proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI for HTTPS upstreams (Critical for Cloud Run)
+        proxy_ssl_server_name on;
+        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
     
+    # ✅ FIX 2: Added '^~' modifier for priority (From previous fix)
     location ^~ /symbols/ {
         proxy_pass ${VITE_API_URL}/symbols/;
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI here too
+        proxy_ssl_server_name on;
+        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # WebSocket proxy (for blockchain updates or event streaming)
+    
+    # WebSocket proxy
     location /ws/ {
         proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI here too
+        proxy_ssl_server_name on;
+        
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
     }
 
-    # Cache static assets aggressively
+    # Cache static assets
     location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
         expires 1y;
         add_header Cache-Control "public, max-age=31536000, immutable";
         access_log off;
     }
 
-    # PWA and service worker rules
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
@@ -59,10 +71,8 @@ server {
         try_files $uri /index.html;
     }
 
-    # Fallback for React Router routes
     error_page 404 /index.html;
 
-    # Enable gzip compression
     gzip on;
     gzip_types text/plain text/css application/json application/javascript;
     gzip_min_length 256;

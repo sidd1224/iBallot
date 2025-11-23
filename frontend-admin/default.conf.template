@@ -9,75 +9,70 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # =========================
-    # ✅ API & WebSocket Proxies
-    # =========================
+    # Serve the React SPA (fallback to index.html)
+    location / {
+        try_files $uri /index.html;
+    }
 
-    # Proxy Admin API
+    # Dynamic API proxy
     location /admin/ {
         proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI for HTTPS upstreams (Critical for Cloud Run)
+        proxy_ssl_server_name on;
+        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # ✅ Proxy Candidate Symbols (must be BEFORE static regex)
+    
+    # ✅ FIX 2: Added '^~' modifier for priority (From previous fix)
     location ^~ /symbols/ {
         proxy_pass ${VITE_API_URL}/symbols/;
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI here too
+        proxy_ssl_server_name on;
+        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
-    # ✅ Proxy WebSocket connections
+    
+    # WebSocket proxy
     location /ws/ {
-        proxy_pass ${VITE_API_URL}/ws;
+        proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
+        
+        # ✅ FIX 1: Enable SNI here too
+        proxy_ssl_server_name on;
+        
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_read_timeout 86400;
     }
 
-    # =========================
-    # ✅ Static Assets & PWA
-    # =========================
-
-    # Static cache rule — keep BELOW API proxies
+    # Cache static assets
     location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
         expires 1y;
         add_header Cache-Control "public, max-age=31536000, immutable";
         access_log off;
     }
 
-    # Service Worker (prevent caching)
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
     }
 
-    # Web App Manifest (prevent caching)
     location = /manifest.webmanifest {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
     }
 
-    # =========================
-    # ✅ React SPA Fallback
-    # =========================
-
-    # Keep this LAST so it doesn’t override other routes
-    location / {
-        try_files $uri /index.html;
-    }
-
     error_page 404 /index.html;
 
-    # Enable Gzip Compression
     gzip on;
     gzip_types text/plain text/css application/json application/javascript;
     gzip_min_length 256;
