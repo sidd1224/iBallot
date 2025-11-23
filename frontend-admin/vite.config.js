@@ -61,8 +61,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
         manifest: {
-          name: 'iBallot',
-          short_name: 'iBallot',
+          name: 'iBallot-Admin',
+          short_name: 'iBallot-Admin',
           description: 'Secure Blockchain E-Voting Platform',
           theme_color: '#ffffff',
           background_color: '#ffffff',
