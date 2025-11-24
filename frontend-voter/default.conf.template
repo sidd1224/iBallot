@@ -9,20 +9,49 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Serve the React SPA (fallback to index.html)
+    # Enable error logging to stdout for easier debugging in Cloud Run logs
+    error_log /dev/stderr warn;
+    access_log /dev/stdout main;
+
+    # Serve the React SPA
     location / {
         try_files $uri /index.html;
     }
 
-    # Dynamic API proxy
+    # ------------------------------------------------------
+    # API PROXY
+    # ------------------------------------------------------
     location /api/ {
+        # 1. Proxy to the backend URL defined in env var
         proxy_pass ${VITE_API_URL};
+        
+        # 2. HTTP Version 1.1 is required for keep-alive connections
         proxy_http_version 1.1;
         
-        # ✅ FIX 1: Enable SNI (Send the domain name in the handshake)
-        proxy_ssl_server_name on;
+        # 3. SSL/TLS Settings for Cloud Run Backend (HTTPS)
+        proxy_ssl_server_name on;  # SNI: Send backend domain name
+        proxy_ssl_verify off;      # Disable strict cert check (avoids 502s on Alpine)
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+
+        # 4. Forwarding Headers (Standard for Cloud Run/Load Balancers)
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         
-        # ✅ FIX 2: Disable Strict Cert Verification (Fixes 502 on Alpine/Cloud Run)
+        # 5. Timeouts (Increase if backend cold starts are slow)
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+    
+    # ------------------------------------------------------
+    # SYMBOLS PROXY (Static Images)
+    # ------------------------------------------------------
+    location ^~ /symbols/ {
+        proxy_pass ${VITE_API_URL}/symbols/;
+        proxy_http_version 1.1;
+        
+        proxy_ssl_server_name on;
         proxy_ssl_verify off;
         
         proxy_set_header X-Real-IP $remote_addr;
@@ -30,29 +59,28 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
     
-    # Static Assets Proxy
-    location ^~ /symbols/ {
-        proxy_pass ${VITE_API_URL}/symbols/;
-        proxy_http_version 1.1;
-        
-        proxy_ssl_server_name on;
-        proxy_ssl_verify off;  # <--- Add this
-        
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    # WebSocket proxy
+    # ------------------------------------------------------
+    # WEBSOCKET PROXY (FIXED)
+    # ------------------------------------------------------
     location /ws/ {
         proxy_pass ${VITE_API_URL};
         proxy_http_version 1.1;
         
+        # ✅ FIX 1: SSL settings for secure backend
         proxy_ssl_server_name on;
-        proxy_ssl_verify off;  # <--- Add this
+        proxy_ssl_verify off;
         
+        # ✅ FIX 2: WebSocket Upgrade Headers (CRITICAL)
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        
+        # ✅ FIX 3: Long timeouts to keep socket open
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        
+        # Forward real IP
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     # Cache static assets
@@ -62,7 +90,6 @@ server {
         access_log off;
     }
 
-    # PWA Rules
     location = /sw.js {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri /index.html;
