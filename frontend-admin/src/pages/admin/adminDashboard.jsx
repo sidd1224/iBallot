@@ -503,11 +503,13 @@ const ResultsPage = ({ adminToken, isActive }) => {
     let wsHost;
 
     try {
-      const backendUrl = new URL(import.meta.env.VITE_API_URL);
+      // FIX: use process.env
+      const backendUrl = new URL(process.env.VITE_API_URL);
+      // ✅ FIX: Use Frontend Host in production to route via Nginx
       wsHost =
         backendUrl.hostname === "backend"
-          ? window.location.hostname + ":5000"
-          : backendUrl.host;
+          ? window.location.hostname + ":5000" // Dev mode
+          : window.location.host; // Prod mode: Use Frontend URL (Nginx)
     } catch {
       wsHost = window.location.host;
     }
