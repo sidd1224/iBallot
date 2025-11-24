@@ -20,7 +20,7 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const apiUrl = import.meta.env.VITE_API_URL;
+  
 
   // Final registration submit
   const handleRegister = async (e) => {
@@ -55,7 +55,7 @@ const Register = () => {
       };
 
       // CHANGED: Endpoint now matches register.js
-      const response = await axios.post(`${apiUrl}/register`, registrationData);
+      const response = await axios.post(`/api/register`, registrationData);
 
       if (response.data.message) { // Use message for success
         toast.success("Registration successful! Redirecting to login...");

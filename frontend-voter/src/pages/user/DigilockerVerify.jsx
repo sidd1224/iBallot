@@ -17,7 +17,7 @@ function DigilockerVerify() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const apiUrl = import.meta.env.VITE_API_URL;
+
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -35,7 +35,7 @@ function DigilockerVerify() {
 
     try {
       // CHANGED: Endpoint and payload now match the backend
-      const response = await axios.post(`${apiUrl}/digilocker/verify-phone`, { 
+      const response = await axios.post(`/api/digilocker/verify-phone`, { 
         phoneNumber // Only send the phone number
       });
 
