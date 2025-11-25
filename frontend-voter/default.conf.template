@@ -1,0 +1,102 @@
+# =============================
+# Dynamic Nginx Proxy Template
+# =============================
+
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Enable error logging to stdout for easier debugging in Cloud Run logs
+    error_log /dev/stderr warn;
+    access_log /dev/stdout main;
+
+    # Serve the React SPA
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # ------------------------------------------------------
+    # API PROXY
+    # ------------------------------------------------------
+    location /api/ {
+        proxy_pass ${VITE_API_URL};
+        proxy_http_version 1.1;
+        
+        proxy_ssl_server_name on;
+        proxy_ssl_verify off;      # Critical for Cloud Run Alpine containers
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+    
+    # ------------------------------------------------------
+    # SYMBOLS PROXY
+    # ------------------------------------------------------
+    location ^~ /symbols/ {
+        proxy_pass ${VITE_API_URL}/symbols/;
+        proxy_http_version 1.1;
+        
+        proxy_ssl_server_name on;
+        proxy_ssl_verify off;      # Added for consistency
+        
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # ------------------------------------------------------
+    # WEBSOCKET PROXY (FIXED)
+    # ------------------------------------------------------
+    # ✅ FIX: Removed trailing slash to match client request "/ws"
+    location /ws {
+        proxy_pass ${VITE_API_URL};
+        proxy_http_version 1.1;
+        
+        # ✅ SSL Settings
+        proxy_ssl_server_name on;
+        proxy_ssl_verify off;      # Added for consistency
+        
+        # ✅ WebSocket Upgrade Headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # ✅ Long timeouts
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Cache static assets
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff2?|ttf)$ {
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        access_log off;
+    }
+
+    location = /sw.js {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        try_files $uri /index.html;
+    }
+
+    location = /manifest.webmanifest {
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        try_files $uri /index.html;
+    }
+
+    error_page 404 /index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+    gzip_min_length 256;
+}

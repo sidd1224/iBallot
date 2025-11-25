@@ -1,49 +1,86 @@
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
-const rateLimit = require('express-rate-limit');
-const userAuth = require("./middleware/userAuth"); // Import user authentication middleware
+const rateLimit = require("express-rate-limit");
+const userAuth = require("./middleware/userAuth");
+const adminAuth = require("./middleware/adminAuth");
+const jwt = require("jsonwebtoken");
 
 const app = express();
+
+// --- SECURITY HEADERS ---
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
 
-// --- Create a rate limiter for authentication routes ---
+// --- TRUST PROXY (for X-Forwarded-For with NGINX) ---
+app.set("trust proxy", 1);
+
+// --- CORS CONFIGURATION ---
+// ✅ MOVED UP: CORS must be defined BEFORE static files to ensure headers are sent for images
+const defaultOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://iballot-frontend-admin-715732606815.asia-south1.run.app",
+  "https://iballot-frontend-voter-715732606815.asia-south1.run.app",
+];
+
+const allowedOrigins = (process.env.CORS_ORIGINS || defaultOrigins.join(","))
+  .split(",")
+  .map((origin) => origin.trim());
+
+console.log("✅ Allowed Origins:", allowedOrigins);
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // Allow curl/postman
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      console.warn(`❌ Blocked CORS request from origin: ${origin}`);
+      return callback(new Error("CORS not allowed for this origin"), false);
+    },
+    credentials: true,
+  })
+);
+
+// --- REQUEST LIMITER (Prevents brute-force login/register attacks) ---
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 login/register requests per windowMs
+  max: 10, // Limit each IP to 10 requests
   standardHeaders: true,
-  legacyHeaders: false, 
-  message: { error: 'Too many requests from this IP, please try again after 15 minutes' },
+  legacyHeaders: false,
+  message: { error: "Too many requests from this IP, please try again after 15 minutes" },
 });
 
-
+// --- MIDDLEWARES ---
 app.use(express.json());
-app.use(express.static('public'));
 
-app.use(cors({
-  origin: "http://localhost:3000",
-  credentials: true
-}));
+// --- STATIC FILES ---
+// ✅ Serve general public assets first
+app.use(express.static(path.join(__dirname, "public")));
 
-// --- PUBLIC USER ROUTES ---
-// Apply rate limiting to prevent brute-force attacks
-app.use("/register", authLimiter, require("./routes/user/register"));
-app.use("/digilocker", require("./routes/user/digilocker"));
-app.use("/login", authLimiter, require("./routes/user/login"));
+// ✅ Serve candidate symbols specifically
+app.use("/symbols/", express.static(path.join(__dirname, "public/symbols")));
 
-// --- PROTECTED USER ROUTES ---
-// Apply user authentication middleware to all routes that require a login
-app.use("/status", userAuth, require("./routes/user/status"));
-app.use("/vote", userAuth, require("./routes/user/vote"));
-app.use("/dashboard", userAuth, require("./routes/user/dashboard")); 
+
+// --- USER ROUTES ---
+// Public routes
+app.use("/api/register", authLimiter, require("./routes/user/register"));
+app.use("/api/digilocker", require("./routes/user/digilocker"));
+app.use("/api/login", authLimiter, require("./routes/user/login"));
+
+// Protected user routes (need token)
+app.use("/api/status", userAuth, require("./routes/user/status"));
+app.use("/api/vote", userAuth, require("./routes/user/vote"));
+app.use("/api/dashboard", userAuth, require("./routes/user/dashboard"));
 app.use("/api/candidates", userAuth, require("./routes/user/candidateList"));
 
-
+// --- ADMIN ROUTES ---
 app.use("/admin/auth", authLimiter, require("./routes/admin/auth"));
 app.use("/admin/dashboard", adminAuth, require("./routes/admin/data-summary"));
 app.use("/admin/elections", adminAuth, require("./routes/admin/elections"));
@@ -51,6 +88,9 @@ app.use("/admin/candidates", adminAuth, require("./routes/admin/candidates"));
 app.use("/admin/results", adminAuth, require("./routes/admin/results"));
 app.use("/admin/eci-data", adminAuth, require("./routes/admin/eciData"));
 
-module.exports = app;
+// ✅ Fallback route for undefined endpoints
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
 
 module.exports = app;

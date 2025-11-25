@@ -1,29 +1,48 @@
-# Use the required Node.js v18 for the backend
-FROM node:18-alpine
+# --- Stage 1: Build Dependencies ---
+# ---!! FIX: Use Node 20 !!---
+FROM node:20-alpine AS deps
 
-# Set the working directory inside the container
 WORKDIR /app
 
-RUN apk add --no-cache bash curl postgresql-client && \
-    curl -L https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh -o /usr/bin/wait-for-it.sh && \
-    chmod +x /usr/bin/wait-for-it.sh
-
-# Add Doppler CLI for secret management, which is needed for 'doppler run --'
-
-
-# Copy package files first to leverage Docker's build cache
 COPY package*.json ./
 
-# Install backend dependencies
-RUN npm install
+# Install *only* production dependencies
+RUN npm ci --omit=dev
 
-# Copy the rest of the backend application code
+
+# --- Stage 2: Build Application ---
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Expose the port the backend runs on
-EXPOSE 5000
+# No build step needed for backend
 
-# Define the default command to start the server.
-# This will be used by docker-compose.
-CMD ["npm", "run", "server"]
 
+# --- Stage 3: Production Image ---
+# ---!! FIX: Use Node 20 !!---
+FROM node:20-alpine AS final
+
+WORKDIR /app
+ENV NODE_ENV production
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 appuser
+
+# ✅ Copy all app files from builder
+COPY --from=builder /app ./
+
+
+# ✅ FIX: Ensure upload directories exist and have proper permissions
+RUN mkdir -p /app/public/symbols /app/uploads \
+    && chown -R appuser:nodejs /app/public /app/uploads
+
+# ✅ Change ownership of everything to the app user
+RUN chown -R appuser:nodejs /app
+
+USER appuser
+
+EXPOSE 8080
+CMD ["node", "server.js"]
