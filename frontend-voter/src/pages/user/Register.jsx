@@ -1,28 +1,25 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Shield, Lock, AlertCircle, CheckCircle, User, ExternalLink, ArrowLeft } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
-import BrandLogo from '../../components/BrandLogo';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const Register = () => {
+const Register = ({ onViewChange }) => {
   const {
     username, setUsername,
     password, setPassword,
-    phoneNumber, // Get phone from context (set by other page)
-    verificationData, // Get Digilocker data from context
-    isVerified // Get the "green tick" status
+    phoneNumber,
+    verificationData,
+    isVerified
   } = useVerification();
-  
-  // This state is only for this page
+
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  
 
-  // Final registration submit
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
@@ -31,54 +28,47 @@ const Register = () => {
       setError('Please verify your identity via Digilocker first.');
       return;
     }
-    
+
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-    
-    // This check is correct for your flow
+
     if (!username || !password || !phoneNumber || !verificationData) {
-        setError("Missing verification data. Please try the verification process again.");
-        return;
+      setError("Missing verification data. Please try the verification process again.");
+      return;
     }
 
     setLoading(true);
 
     try {
-      // This payload is correct for your flow
       const registrationData = {
-        username, // The unique username
+        username,
         password,
         phoneNumber,
-        digilockerData: verificationData // The data we got from the verify page
+        digilockerData: verificationData
       };
 
-      // CHANGED: Endpoint now matches register.js
       const response = await axios.post(`/api/register`, registrationData);
 
-      if (response.data.message) { // Use message for success
+      if (response.data.message) {
         toast.success("Registration successful! Redirecting to login...");
         setTimeout(() => navigate('/login'), 2000);
       } else {
-         setError(response.data.error || 'Registration failed.');
-         toast.error(response.data.error || 'Registration failed.');
+        setError(response.data.error || 'Registration failed.');
+        toast.error(response.data.error || 'Registration failed.');
       }
     } catch (err) {
-      // CHECK FOR VALIDATION ERRORS FIRST
       if (err.response?.data?.errors) {
-        // Get the first error message from the backend's array
         const firstError = err.response.data.errors[0].msg;
         setError(`Registration failed: ${firstError}`);
         toast.error(`Registration failed: ${firstError}`);
-      
       } else {
-        // FALLBACK for other types of errors
         const errMsg = err.response?.data?.error || err.message || 'An error occurred.';
         setError(`Registration failed: ${errMsg}`);
         toast.error(`Registration failed: ${errMsg}`);
       }
-      console.error("Registration error:", err); // Keep this
+      console.error("Registration error:", err);
     } finally {
       setLoading(false);
     }
@@ -87,99 +77,157 @@ const Register = () => {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      {/* CHANGED: Reduced vertical padding on mobile (py-6) 
-        and kept it larger for screens 'sm' and up (sm:py-12)
-      */}
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <BrandLogo />
-          
-          {/* CHANGED: Reduced padding (p-6) and shadow on mobile.
-            Kept larger padding (sm:p-8) and shadow for 'sm' and up.
-          */}
-          <div className="bg-white p-6 sm:p-8 shadow-md sm:shadow-xl rounded-lg">
-            <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 mb-6">
-              Create Account
-            </h2>
-            {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-            
+
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+
+        {/* Header / Logo */}
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div
+            className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
+            onClick={() => {
+              if (onViewChange) onViewChange('landing');
+            }}
+          >
+            <Shield className="h-10 w-10 text-white" />
+          </div>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Create Account</h2>
+          <p className="mt-2 text-sm text-gray-600">Join the secure voting platform</p>
+        </div>
+
+        {/* Card Container */}
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-4 shadow-xl shadow-indigo-100/50 rounded-2xl sm:px-10 border border-gray-100">
+
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+            )}
+
             <form className="space-y-6" onSubmit={handleRegister}>
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter a unique username"
-                  disabled={loading || isVerified} // This is correct
-                />
-              </div>
 
+              {/* Username */}
               <div>
-                <label htmlFor="password">Create Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Create a strong password"
-                  disabled={loading}
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="confirmPassword">Confirm Password</label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)} 
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Confirm your password"
-                  disabled={loading}
-                />
-              </div>
-
-              {/* --- CONDITIONAL VERIFICATION BUTTON --- */}
-              {!isVerified ? (
-                <Link
-                  to="/verify/digilocker"
-                  className={`mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${loading ? 'bg-gray-400' : ''}`}
-                  aria-disabled={loading}
-                  onClick={(e) => loading && e.preventDefault()} // Prevent navigation if loading
-                >
-                  Verify via Digilocker
-                </Link>
-              ) : (
-                <div className="mt-4 w-full flex justify-center py-2 px-4 border border-green-500 rounded-md shadow-sm text-sm font-medium text-green-700 bg-green-100">
-                  Verified ✔
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter Username"
+                    disabled={loading || isVerified}
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                  />
                 </div>
-              )}
-              {/* --- END CONDITIONAL BUTTON --- */}
-              
+              </div>
+
+              {/* Password */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">Create Password</label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                  />
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                  />
+                </div>
+              </div>
+
+              {/* DigiLocker Verification UI */}
+              <div className="pt-2">
+                {!isVerified ? (
+                  <Link
+                    to="/verify/digilocker"
+                    onClick={(e) => loading && e.preventDefault()}
+                    className={`w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl shadow-sm text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
+                      loading ? 'opacity-75 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <ExternalLink className="w-5 h-5 mr-2" />
+                    Verify via DigiLocker
+                  </Link>
+                ) : (
+                  <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl shadow-sm text-sm font-semibold text-green-700 bg-green-50 cursor-default animate-in fade-in zoom-in duration-300">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Identity Verified
+                  </div>
+                )}
+              </div>
+
+              {/* Register Submit */}
               <button
                 type="submit"
-                disabled={loading || !isVerified} // Disable until verified
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-gray-400"
+                disabled={loading || !isVerified}
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white transition-all ${
+                  loading || !isVerified
+                    ? 'bg-indigo-400 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                }`}
               >
-                {loading ? 'Registering...' : 'Register'}
+                {loading ? 'Creating Account...' : 'Register'}
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Log in here
-              </Link>
-            </p>
+            {/* Back to Login */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => {
+                  if (onViewChange) onViewChange('login');
+                  else navigate('/login');
+                }}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center justify-center w-full"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Login
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Badges */}
+          <div className="mt-8 text-center space-x-4">
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <Lock className="h-3 w-3 mr-1" /> SSL Secured
+            </span>
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <CheckCircle className="h-3 w-3 mr-1" /> Blockchain Verified
+            </span>
           </div>
         </div>
       </div>

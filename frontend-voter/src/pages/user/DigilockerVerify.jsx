@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom'; // <-- Added Link
-import { useVerification } from '../../context/VerificationContext'; 
-import BrandLogo from '../../components/BrandLogo'; 
+import { useNavigate, Link } from 'react-router-dom';
+import { useVerification } from '../../context/VerificationContext';
+import BrandLogo from '../../components/BrandLogo';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { Shield, Lock, AlertCircle, CheckCircle, ExternalLink, Phone, Loader2, ArrowLeft } from 'lucide-react';
 
-function DigilockerVerify() {
+function DigilockerVerify({ onViewChange }) {
   const {
-    // username is no longer needed on this page
-    phoneNumber, setPhoneNumber, 
+    phoneNumber, setPhoneNumber,
     setVerificationData,
-    setIsVerified
+    setIsVerified,
+    username, password // But we are NOT using them in this page input
   } = useVerification();
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -29,30 +29,24 @@ function DigilockerVerify() {
       return;
     }
 
-    // <-- REMOVED the 'if (!username)' check
-    
     setLoading(true);
 
     try {
-      // CHANGED: Endpoint and payload now match the backend
-      const response = await axios.post(`/api/digilocker/verify-phone`, { 
-        phoneNumber // Only send the phone number
+      const response = await axios.post(`/api/digilocker/verify-phone`, {
+        phoneNumber
       });
 
       if (response.data.success) {
         toast.success("Verification successful! Returning to registration...");
-        // Save the successful verification data to the context
-        setVerificationData(response.data.data); // Save the verified data
-        setIsVerified(true); // Set the "green tick" status
-        
-        // Navigate back to the register page
+        setVerificationData(response.data.data);
+        setIsVerified(true);
+
         setTimeout(() => navigate('/register'), 2000);
       } else {
         setError(response.data.error || 'Verification failed. Please check your details.');
         toast.error(response.data.error || 'Verification failed.');
       }
-    } catch (err)
- {
+    } catch (err) {
       const errMsg = err.response?.data?.error || err.message || 'An unknown error occurred.';
       setError(errMsg);
       toast.error(errMsg);
@@ -65,67 +59,93 @@ function DigilockerVerify() {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      {/* CHANGED: Reduced vertical padding on mobile (py-6) 
-        and kept it larger for screens 'sm' and up (sm:py-12)
-      */}
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-6 px-4 sm:py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <BrandLogo />
-          
-          {/* CHANGED: Reduced padding (p-6) and shadow on mobile.
-            Kept larger padding (sm:p-8) and shadow for 'sm' and up.
-            Also made rounding consistent with 'rounded-lg'.
-          */}
-          <div className="bg-white p-6 sm:p-8 shadow-md sm:shadow-xl rounded-lg space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold tracking-tight text-gray-900">
-                Verify Your Phone
-              </h2>
-              <p className="mt-2 text-sm text-gray-600">
-                Enter the phone number associated with your Aadhaar for verification.
-              </p>
-            </div>
-            
+
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+
+        {/* HEADER SECTION (from Register1 design) */}
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div
+            className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
+            onClick={() => (onViewChange ? onViewChange('landing') : null)}
+          >
+            <Shield className="h-10 w-10 text-white" />
+          </div>
+
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Identity Verification</h2>
+          <p className="mt-2 text-sm text-gray-600">Verify your identity securely via DigiLocker</p>
+        </div>
+
+        {/* MAIN CARD (design from Verify1) */}
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-4 shadow-xl shadow-blue-100/50 rounded-2xl sm:px-10 border border-gray-100 text-center">
+
+            {/* ERROR BOX (from original functionality */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm text-left">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+            )}
+
+            {/* VERIFY FORM (functionality preserved) */}
             <form className="space-y-6" onSubmit={handleVerify}>
-              {/* Phone Number Input */}
-              <div>
-                <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700">
-                  Phone Number
+              {/* Phone Input */}
+              <div className="text-left">
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  Mobile Number
                 </label>
-                <input
-                  id="phone-number"
-                  name="phoneNumber"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter your 10-digit phone number"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                />
+                <div className="relative rounded-xl shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+
+                  <input
+                    type="tel"
+                    name="phone"
+                    id="phone"
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-xl p-3 border transition-all"
+                    placeholder="Enter your Aadhaar linked mobile"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    disabled={loading}
+                    required
+                  />
+                </div>
               </div>
 
-              {error && (
-                <p className="text-center text-sm text-red-600">{error}</p>
-              )}
-
-              {/* Verify Button (no OTP, as requested) */}
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="group relative flex w-full justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-400"
-                >
-                  {loading ? 'Verifying...' : 'Verify'}
-                </button>
-              </div>
+              {/* Submit Verify Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full flex items-center justify-center px-4 py-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all transform hover:-translate-y-0.5 ${
+                  loading ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+              >
+                {loading ? 'Verifying...' : <><ExternalLink className="mr-2 h-5 w-5" /> Connect with DigiLocker</>}
+              </button>
             </form>
 
-            <div className="text-center text-sm">
-              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                &larr; Back to Registration
-              </Link>
+            {/* CANCEL BUTTON (kept same logic, only UI changed */}
+            <div className="mt-8 border-t border-gray-100 pt-6">
+              <button
+                onClick={() => (onViewChange ? onViewChange('register') : navigate('/register'))}
+                className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center justify-center w-full transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Cancel Verification
+              </button>
             </div>
+
+            {/* BOTTOM BADGES (from Register1 design */}
+            <div className="mt-6 text-center space-x-4">
+              <span className="inline-flex items-center text-xs text-gray-500">
+                <Lock className="h-3 w-3 mr-1" /> Govt. Integration
+              </span>
+              <span className="inline-flex items-center text-xs text-gray-500">
+                <CheckCircle className="h-3 w-3 mr-1" /> 100% Secure
+              </span>
+            </div>
+
           </div>
         </div>
       </div>

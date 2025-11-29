@@ -8,6 +8,7 @@ const Register = React.lazy(() => import('./pages/user/Register'));
 const Dashboard = React.lazy(() => import('./pages/user/Dashboard'));
 const DigilockerVerify = React.lazy(() => import('./pages/user/DigilockerVerify'));
 const CandidateList = React.lazy(() => import('./pages/user/CandidateList'));
+const LandingPage = React.lazy(() => import('./pages/user/LandingPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -33,12 +34,12 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/verify/digilocker" element={<DigilockerVerify />} />
-
+            <Route path="/LandingPage" element={<LandingPage />} />
             {/* ✅ FIXED: Dynamic params for CandidateList */}
             <Route path="/candidates/:electionId/:assemblyId" element={<CandidateList />} />
 
             {/* Default redirect to login */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/LandingPage" replace />} />
           </Routes>
         </Suspense>
       </Router>

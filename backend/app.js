@@ -79,6 +79,7 @@ app.use("/api/status", userAuth, require("./routes/user/status"));
 app.use("/api/vote", userAuth, require("./routes/user/vote"));
 app.use("/api/dashboard", userAuth, require("./routes/user/dashboard"));
 app.use("/api/candidates", userAuth, require("./routes/user/candidateList"));
+app.use('/api/election-stats',userAuth, require("./routes/user/electionStats"));
 
 // --- ADMIN ROUTES ---
 app.use("/admin/auth", authLimiter, require("./routes/admin/auth"));

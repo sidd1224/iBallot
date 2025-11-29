@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import BrandLogo from '../../components/BrandLogo';
+import { Shield, User, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -23,24 +23,23 @@ const Login = () => {
         password,
       });
 
-      // ✅ Log backend response (for debugging)
       console.log("✅ Login Response:", response.data);
 
-      // ✅ Store all relevant data from backend
       sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('user', JSON.stringify({
-        username: response.data.user.username,
-        hasVoted: response.data.hasVoted // ✅ Add this field for consistency
-      }));
+      sessionStorage.setItem(
+        'user',
+        JSON.stringify({
+          username: response.data.user.username,
+          hasVoted: response.data.hasVoted
+        })
+      );
       sessionStorage.setItem('voterHash', response.data.voterHash);
       sessionStorage.setItem('walletAddress', response.data.walletAddress);
       sessionStorage.setItem('constituency', JSON.stringify(response.data.constituency));
 
-      toast.success('Login successful! Redirecting...');
+      toast.success("Login successful! Redirecting...");
 
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+      setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
       const errMsg = err.response?.data?.error || 'Login failed. Please check your credentials.';
       console.error("❌ Login Error:", err.response || err);
@@ -53,64 +52,110 @@ const Login = () => {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <BrandLogo />
 
-          <div className="bg-white p-8 shadow-xl rounded-lg">
-            <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900 mb-6">
-              Voter Login
-            </h2>
-            {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+
+        {/* Top Logo Section */}
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Shield className="h-10 w-10 text-white" />
+          </div>
+
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Voter Login</h2>
+          <p className="mt-2 text-sm text-gray-600">Securely access the ballot box</p>
+        </div>
+
+        {/* Main Card */}
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-4 shadow-xl shadow-indigo-100/50 rounded-2xl sm:px-10 border border-gray-100">
+
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+            )}
 
             <form className="space-y-6" onSubmit={handleSubmit}>
+              
+              {/* Username */}
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700">
                   Username
                 </label>
-                <input
-                  type="text"
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter your username"
-                  disabled={loading}
-                />
+                <div className="mt-1 relative rounded-md">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    placeholder="Enter your username"
+                    disabled={loading}
+                    className="block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
+              {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-                  placeholder="Enter your password"
-                  disabled={loading}
-                />
+                <div className="mt-1 relative rounded-md">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    disabled={loading}
+                    className="block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-gray-400"
-              >
-                {loading ? 'Logging in...' : 'Log In'}
-              </button>
-            </form>
+              {/* Register Link */}
+              <div className="flex justify-between text-sm">
+                <span></span>
+                <Link
+                  to="/register"
+                  className="font-medium text-indigo-600 hover:text-indigo-500"
+                >
+                  Don't have an account?
+                </Link>
+              </div>
 
-            <p className="mt-6 text-center text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Register here
-              </Link>
-            </p>
+              {/* Submit Button */}
+              <div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-all ${
+                    loading ? 'opacity-75 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {loading ? 'Logging in...' : 'Sign In'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Bottom Badges */}
+          <div className="mt-8 text-center space-x-4">
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <Lock className="h-3 w-3 mr-1" /> SSL Secured
+            </span>
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <CheckCircle className="h-3 w-3 mr-1" /> Blockchain Verified
+            </span>
           </div>
         </div>
       </div>

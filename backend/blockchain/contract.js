@@ -1,85 +1,104 @@
 const { JsonRpcProvider, Contract, getAddress, Wallet } = require("ethers");
 require("dotenv").config();
 
-const VotingContract = require("./Voting.json"); // Load the ABI file
+const VotingContract = require("./Voting.json");
 const abi = VotingContract.abi;
 
 const RPC_URL = process.env.RPC_URL;
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-// Using ADMIN_PRIVATE_KEY as it's the one defined for the project
-const ADMIN_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY; // ✅ using relayer key
 
 let contract;
 let provider;
 let wallet;
-let broadcastRef = null; // ✅ To store WebSocket broadcast function reference
+let broadcastRef = null;
 
 try {
-  if (!CONTRACT_ADDRESS || !ADMIN_PRIVATE_KEY) {
-    throw new Error("Missing CONTRACT_ADDRESS or ADMIN_PRIVATE_KEY from environment variables.");
+  if (!CONTRACT_ADDRESS || !RELAYER_PRIVATE_KEY) {
+    throw new Error("Missing CONTRACT_ADDRESS or RELAYER_PRIVATE_KEY in env");
   }
 
   provider = new JsonRpcProvider(RPC_URL);
-  // Validate and format contract address
-  const address = getAddress(CONTRACT_ADDRESS); // throws if invalid
-  wallet = new Wallet(ADMIN_PRIVATE_KEY, provider);
+  const address = getAddress(CONTRACT_ADDRESS);
+  wallet = new Wallet(RELAYER_PRIVATE_KEY, provider);
 
   contract = new Contract(address, abi, wallet);
-
-
-
   console.log("✅ Contract loaded at:", address);
 
-  // --- Diagnostic check to confirm ABI is loaded properly ---
+  // --- diagnostic ---
   if (typeof contract.candidateCounter === "function") {
-    console.log("✅ candidateCounter function IS available on the contract object.");
+    console.log("✅ candidateCounter() is available in ABI");
   } else {
-    console.error("❌ candidateCounter function IS NOT available on the contract object!");
-    console.log("   Functions detected by ethers:", Object.keys(contract.interface.functions));
+    console.error("❌ candidateCounter() not found in ABI!");
+    console.log("Functions detected:", Object.keys(contract.interface.functions));
   }
-  // -----------------------------------------------------------
-
 } catch (err) {
-  console.error("❌ Failed to initialize blockchain components:", err.message);
+  console.error("❌ Failed to init contract:", err.message);
   process.exit(1);
 }
 
-/**
- * Starts listening for VoteCast events on the smart contract.
- * When an event is received, it broadcasts the data to connected clients (e.g., admin dashboards).
- * @param {function} broadcast - Function to call to broadcast messages over WebSocket.
- */
-function startVoteListener(broadcast) {
-  broadcastRef = broadcast; // Store broadcast reference
+// ✅ Wrapped read calls so you can import directly without struct getter confusion
+async function getCandidateStruct(electionId, constituencyId, candidateId) {
+  const eID = Number(electionId);
+  const cID = Number(constituencyId);
+  const candID = Number(candidateId);
 
-  contract.on("VoteCast", (electionId, constituencyId, candidateId, voterHash, event) => {
-    console.log(`🗳️ VoteCast detected for Election ${electionId} -> Candidate ${candidateId}`);
+  return retryBlockchainCall(() =>
+    contract.candidates(eID, cID, candID)
+  );
+}
 
-    // 🔄 Broadcast to all connected WebSocket clients (admin dashboards)
+// ✅ Read total votes for an election
+async function getElectionTotalVotes(electionId) {
+  const eID = Number(electionId);
+  return retryBlockchainCall(() =>
+    contract.getTotalVotes(eID)
+  );
+}
+
+// ✅ Read vote count for a specific candidate
+async function getCandidateVoteCount(electionId, constituencyId, candidateId) {
+  const eID = Number(electionId);
+  const cID = Number(constituencyId);
+  const candID = Number(candidateId);
+
+  return retryBlockchainCall(() =>
+    contract.getVoteCount(eID, cID, candID)
+  );
+}
+
+// ✅ WebSocket vote listener (already fine)
+function startVoteListener(broadcastFn) {
+  broadcastRef = broadcastFn;
+
+  contract.on("VoteCast", (electionId, voterHash, candidateId, event) => {
+    console.log(`🗳 VoteCast detected → Election ${electionId}, Candidate ${candidateId}`);
+
     if (broadcastRef) {
       broadcastRef({
         type: "VOTE_UPDATE",
         payload: {
           electionId: Number(electionId),
-          constituencyId: Number(constituencyId),
           candidateId: Number(candidateId),
           timestamp: Date.now(),
         },
       });
       console.log(`📡 Broadcasted VOTE_UPDATE for Election ${electionId}`);
-    } else {
-      console.warn("⚠️ No WebSocket broadcast reference found — skipping broadcast.");
     }
   });
-
-
 
   console.log("👂 Listening for VoteCast events...");
 }
 
-// Export everything that's needed by other parts of the app
+// Exporting helpers ✅ so other files can import directly
 module.exports = {
   contract,
   provider,
   startVoteListener,
+  getCandidateStruct,
+  getElectionTotalVotes,
+  getCandidateVoteCount,
+  getCandidateVoteCount,
+  getElectionTotalVotes,
+  
 };
