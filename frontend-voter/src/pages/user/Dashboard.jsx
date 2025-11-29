@@ -6,14 +6,13 @@ import {
   Shield,
   LayoutDashboard,
   Vote,
-  FileText,
-  Settings,
   LogOut,
-  Bell,
   Clock,
   CheckCircle,
   AlertCircle,
   Calendar,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -35,6 +34,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState('dashboard');
+  
+  // 🟢 State for Sidebar Collapse
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // 🔁 Fetch dashboard data
   useEffect(() => {
@@ -79,22 +81,16 @@ const Dashboard = () => {
     }
   };
 
-  // 🎯 Status icon helper
-  const statusIcon = (status) => {
-    if (status === 'Live') return <Clock className="h-4 w-4 text-red-600" />;
-    if (status === 'Upcoming') return <Calendar className="h-4 w-4 text-blue-600" />;
-    return <CheckCircle className="h-4 w-4 text-gray-600" />;
-  };
-
   const SidebarItem = ({ id, icon: Icon, label }) => (
     <button
       onClick={() => setView(id)}
-      className={`w-full flex items-center px-4 py-3 mb-1 rounded-xl text-sm font-medium transition-all ${
+      title={isCollapsed ? label : ''} // Show tooltip on hover when collapsed
+      className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 mb-1 rounded-xl text-sm font-medium transition-all ${
         view === id ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
       }`}
     >
-      <Icon className={`h-5 w-5 mr-3 ${view === id ? 'text-indigo-600' : 'text-gray-400'}`} />
-      {label}
+      <Icon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'} ${view === id ? 'text-indigo-600' : 'text-gray-400'}`} />
+      {!isCollapsed && <span className="whitespace-nowrap transition-opacity duration-300">{label}</span>}
     </button>
   );
 
@@ -120,38 +116,52 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* SIDEBAR – kept exactly same style */}
-      <aside className="hidden lg:flex flex-col w-72 bg-white border-r border-gray-200 h-screen sticky top-0">
-        <div className="p-6 flex items-center gap-3 border-b border-gray-100">
-          <div className="bg-indigo-600 p-2 rounded-lg"><Shield className="h-6 w-6 text-white" /></div>
-          <span className="text-xl font-bold">iBallot</span>
+      {/* SIDEBAR */}
+      <aside 
+        className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-gray-200 h-screen sticky top-0 transition-all duration-300 ease-in-out`}
+      >
+        {/* Header */}
+        <div className={`p-6 flex items-center ${isCollapsed ? 'flex-col justify-center gap-4' : 'justify-between'} border-b border-gray-100`}>
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2 rounded-lg shrink-0"><Shield className="h-6 w-6 text-white" /></div>
+            {!isCollapsed && <span className="text-xl font-bold whitespace-nowrap overflow-hidden transition-all">iBallot</span>}
+          </div>
+          
+          {/* Collapse Toggle Button */}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4">
           <SidebarItem id="dashboard" icon={LayoutDashboard} label="Dashboard" />
-          {/* ✅ Elections tab switch */}
           <SidebarItem id="elections" icon={Vote} label="Elections" />
-          <SidebarItem id="history" icon={FileText} label="Voting History" />
-          <SidebarItem id="settings" icon={Settings} label="Settings" />
         </div>
 
+        {/* Footer */}
         <div className="p-4 border-t border-gray-100">
-          <div className="flex items-center p-3 rounded-xl bg-gray-50 mb-3">
-            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold mr-3">
+          <div className={`flex items-center p-3 rounded-xl bg-gray-50 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
+            <div className={`h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 ${isCollapsed ? '' : 'mr-3'}`}>
               {user?.username?.charAt(0).toUpperCase() || 'U'}
             </div>
-            <div>
-              <p className="text-sm font-semibold truncate">{user?.username || 'User'}</p>
-              <p className="text-xs text-gray-500">Verified Voter</p>
-            </div>
+            {!isCollapsed && (
+                <div className="overflow-hidden">
+                    <p className="text-sm font-semibold truncate w-32">{user?.username || 'User'}</p>
+                    <p className="text-xs text-gray-500">Verified Voter</p>
+                </div>
+            )}
           </div>
 
-          {/* logout kept for future */}
           <button
             onClick={() => { sessionStorage.clear(); navigate('/login'); }}
-            className="w-full flex items-center justify-center px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50"
+            title={isCollapsed ? "Sign Out" : ""}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-all`}
           >
-            <LogOut className="h-4 w-4 mr-2" /> Sign Out
+            <LogOut className={`h-4 w-4 ${isCollapsed ? '' : 'mr-2'}`} /> 
+            {!isCollapsed && "Sign Out"}
           </button>
         </div>
       </aside>
@@ -166,9 +176,6 @@ const Dashboard = () => {
               <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {user?.username || 'Voter'} 👋</h1>
               <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening in your elections</p>
             </div>
-            <button className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full mt-4 sm:mt-0">
-              <Bell className="h-5 w-5" />
-            </button>
           </div>
 
           {/* ERROR */}
@@ -251,31 +258,10 @@ const Dashboard = () => {
             </>
           )}
 
-          {/* 🟢 Elections View – Internal Tab Load */}
+          {/* 🟢 Elections View */}
           {view === 'elections' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              {/* ✅ Election component loaded inside same layout */}
               <Elections />
-            </div>
-          )}
-
-          {/* 👀 Voting History Tab Placeholder – future use */}
-          {view === 'history' && (
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-gray-500" /> Voting History
-              </h2>
-              <p className="text-sm text-gray-500">Voting history section coming soon...</p>
-            </div>
-          )}
-
-          {/* Settings Tab Placeholder */}
-          {view === 'settings' && (
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Settings className="h-5 w-5 text-gray-500" /> Settings
-              </h2>
-              <p className="text-sm text-gray-500">Settings section coming soon...</p>
             </div>
           )}
 
