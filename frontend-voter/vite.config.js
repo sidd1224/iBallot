@@ -92,6 +92,12 @@ export default defineConfig(({ mode }) => {
       }),
     ],
 
+
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/setupTests.js',
+      include: ['src/__tests__/**/*.test.{js,jsx,ts,tsx}'],
+    },
     // Local or Docker dev server
     server: {
       host: '0.0.0.0', // Allow external connections (important for Docker)
