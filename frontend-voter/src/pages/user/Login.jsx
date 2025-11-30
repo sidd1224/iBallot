@@ -53,26 +53,27 @@ const Login = () => {
     <>
       <ToastContainer position="top-right" autoClose={3000} />
 
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Responsive Fix: Adjusted Padding */}
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
 
         {/* Top Logo Section */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <Shield className="h-10 w-10 text-white" />
+          <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
           </div>
 
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Voter Login</h2>
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900">Voter Login</h2>
           <p className="mt-2 text-sm text-gray-600">Securely access the ballot box</p>
         </div>
 
         {/* Main Card */}
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow-xl shadow-indigo-100/50 rounded-2xl sm:px-10 border border-gray-100">
 
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
-                <AlertCircle className="h-5 w-5 mr-2" />
-                {error}
+                <AlertCircle className="h-5 w-5 mr-2 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -95,7 +96,8 @@ const Login = () => {
                     required
                     placeholder="Enter your username"
                     disabled={loading}
-                    className="block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
+                    // Responsive Fix: text-base
+                    className="block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
               </div>
@@ -117,14 +119,14 @@ const Login = () => {
                     required
                     placeholder="••••••••"
                     disabled={loading}
-                    className="block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
+                    // Responsive Fix: text-base
+                    className="block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               {/* Register Link */}
-              <div className="flex justify-between text-sm">
-                <span></span>
+              <div className="flex justify-end text-sm">
                 <Link
                   to="/register"
                   className="font-medium text-indigo-600 hover:text-indigo-500"

@@ -83,12 +83,6 @@ router.post("/", async (req, res) => {
 
     if (electionResult.rows.length > 0) {
       electionId = electionResult.rows[0].election_id;
-      try {
-        hasVoted = await retryBlockchainCall(() => contract.hasVoted(electionId, voterHash));
-      } catch (err) {
-        console.error("❌ Failed to check voting status:", err.message);
-        return res.status(500).json({ error: "Could not verify voting status." });
-      }
     }
 
     // ✅ Step 5: Block re-login if already voted

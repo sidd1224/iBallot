@@ -27,25 +27,25 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8 font-sans text-gray-900">
       {/* Brand Header */}
-      <div className="mb-8 text-center">
-        <div className="mx-auto bg-indigo-600 h-12 w-12 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4">
-          <Shield className="h-7 w-7 text-white" />
+      <div className="mb-8 text-center w-full max-w-md">
+        <div className="mx-auto bg-indigo-600 h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4 transition-all duration-300">
+          <Shield className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900">iBallot Admin</h1>
-        <p className="text-gray-500 mt-2">Secure Election Management System</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">iBallot Admin</h1>
+        <p className="text-sm sm:text-base text-gray-500 mt-2">Secure Election Management System</p>
       </div>
 
       {/* Login Card */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300">
+        <div className="p-6 sm:p-8">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
             <Lock className="h-5 w-5 text-indigo-500" />
             Authenticate Access
           </h2>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6">
             <div>
               <label htmlFor="admin-token" className="block text-sm font-medium text-gray-700 mb-2">
                 Security Token
@@ -57,14 +57,15 @@ const AdminLogin = () => {
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder="Enter your secure admin token"
-                  className="w-full pl-4 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-sm"
+                  // Use text-base on mobile to prevent IOS zoom, text-sm on desktop
+                  className="w-full pl-4 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-base sm:text-sm placeholder-gray-400"
                   required
                 />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 animate-in fade-in slide-in-from-top-1 duration-200">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {error}
               </div>
@@ -73,7 +74,7 @@ const AdminLogin = () => {
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-base sm:text-sm"
             >
               {loading ? (
                 <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -86,7 +87,7 @@ const AdminLogin = () => {
           </form>
         </div>
         
-        <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
+        <div className="bg-gray-50 px-6 sm:px-8 py-4 border-t border-gray-100 text-center">
           <p className="text-xs text-gray-400">
             Restricted access. All activities are monitored.
           </p>

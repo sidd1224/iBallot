@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { 
+  Shield, 
+  Lock, 
+  CheckCircle, 
+  User, 
+  ArrowLeft, 
+  AlertCircle,
+  Vote
+} from "lucide-react";
 
 const CandidateList = () => {
   const { electionId, assemblyId } = useParams();
@@ -14,19 +23,17 @@ const CandidateList = () => {
   const [password, setPassword] = useState("");
   const [voteError, setVoteError] = useState("");
 
-  // ✅ Always use sessionStorage (not localStorage)
   const user = JSON.parse(sessionStorage.getItem("user"));
   const token = sessionStorage.getItem("token");
 
-  // 🧠 Redirect back to login if session expired
+  // Redirect if session expired
   useEffect(() => {
     if (!user || !token) {
-      console.warn("⚠️ Session expired or missing user/token — redirecting to login");
       navigate("/login");
     }
-  }, [navigate]); // ✅ No user/token in deps → prevents re-trigger loop
+  }, [navigate, user, token]);
 
-  // ✅ Fetch candidates (single trigger fix + proper image URL)
+  // Fetch candidates
   useEffect(() => {
     let isMounted = true;
 
@@ -43,30 +50,20 @@ const CandidateList = () => {
         });
 
         if (isMounted) {
-          console.log("✅ Candidates fetched:", res.data);
           const formatted = (res.data.candidates || []).map((c) => {
-            // ✅ FIX: Robust Path Handling
-            // If DB has "part.png" -> symbolUrl becomes "/symbols/part.png"
-            // If DB has "/symbols/part.png" -> symbolUrl becomes "/symbols/part.png"
-            // This safely handles your DB format of strictly filenames.
             const symbolUrl = c.symbol 
               ? `/symbols/${c.symbol.split("/").pop()}` 
               : null;
-
-            return {
-              ...c,
-              symbol: symbolUrl,
-            };
+            return { ...c, symbol: symbolUrl };
           });
           setCandidates(formatted);
         }
       } catch (err) {
-        console.error("❌ Error fetching candidates:", err);
         if (err.response?.status === 401) {
           sessionStorage.clear();
           navigate("/login");
         } else {
-          setError("Failed to fetch candidates. Please try again later.");
+          setError("Failed to load official candidate list.");
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -74,13 +71,10 @@ const CandidateList = () => {
     };
 
     fetchCandidates();
+    return () => { isMounted = false; };
+  }, [electionId, assemblyId, token, user, navigate]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [electionId, assemblyId]); // ✅ Only trigger when electionId or assemblyId changes
-
-  // ✅ Handle vote submission
+  // Handle Vote
   const handleVoteSubmit = async (e) => {
     e.preventDefault();
 
@@ -89,7 +83,7 @@ const CandidateList = () => {
       return;
     }
     if (!password) {
-      setVoteError("Please enter your password to confirm your vote.");
+      setVoteError("Password is required to confirm identity.");
       return;
     }
 
@@ -105,12 +99,11 @@ const CandidateList = () => {
           electionId: parseInt(electionId),
           candidateId: selectedCandidate,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      alert(`✅ Vote cast successfully!\nTransaction Hash: ${response.data.txHash}`);
+      // Success UI handling could be improved with a modal, but alert is standard for now
+      alert(`✅ Vote cast successfully!\nTx Hash: ${response.data.txHash}`);
       sessionStorage.clear();
       navigate("/login");
     } catch (err) {
@@ -119,122 +112,182 @@ const CandidateList = () => {
         sessionStorage.clear();
         navigate("/login");
       }
-      setVoteError(err.response?.data?.error || "An unexpected error occurred while voting.");
+      setVoteError(err.response?.data?.error || "Vote transaction failed.");
     } finally {
       setIsVoting(false);
     }
   };
 
-  // ✅ Conditional Rendering
-  if (loading)
-    return <div className="p-8 text-center text-lg">Loading Candidates...</div>;
-  if (error)
-    return <div className="p-8 text-center text-red-600">{error}</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium">Loading Official Ballot...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // ✅ Main UI
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center items-center p-4">
-      <div className="w-full max-w-lg bg-white shadow-xl rounded-2xl p-8">
-        <header className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Cast Your Vote</h1>
-          <p className="text-gray-500 mt-2">
-            Select one candidate for Election #{electionId}
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      
+      {/* Top Navigation Bar */}
+      <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between">
+        <button 
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center text-sm font-medium text-gray-500 hover:text-indigo-600 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" /> Return to Dashboard
+        </button>
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-indigo-600" />
+          <span className="font-bold text-gray-900">iBallot Secure</span>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl shadow-indigo-100/50 border border-gray-100 overflow-hidden">
+        
+        {/* Header Section */}
+        <div className="bg-white border-b border-gray-100 p-6 sm:p-8 text-center">
+          <div className="inline-flex items-center justify-center p-3 bg-indigo-50 rounded-xl mb-4">
+            <Vote className="h-8 w-8 text-indigo-600" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+            Official Ballot
+          </h1>
+          <p className="mt-2 text-gray-500 text-sm sm:text-base max-w-lg mx-auto">
+            Please select your preferred candidate for <span className="font-semibold text-gray-800">Election #{electionId}</span>. 
+            This action is irreversible and recorded on the blockchain.
           </p>
-        </header>
+        </div>
 
-        {/* --- Candidate Cards --- */}
-        <div className="space-y-4">
-          {candidates.length > 0 ? (
-            candidates.map((candidate) => (
-              <div
-                key={candidate.id}
-                onClick={() => setSelectedCandidate(candidate.id)}
-                className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                  selectedCandidate === candidate.id
-                    ? "border-indigo-600 bg-indigo-50 shadow-md scale-105"
-                    : "border-gray-200 hover:border-indigo-400"
-                }`}
-              >
-                {/* Symbol */}
-                <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                  {candidate.symbol ? (
-                    <img
-                      src={candidate.symbol}
-                      alt={`${candidate.party_name} symbol`}
-                      className="w-full h-full object-contain p-1"
-                    />
-                  ) : (
-                    <span className="text-gray-400 text-sm">No Symbol</span>
-                  )}
-                </div>
-
-                {/* Candidate Info */}
-                <div className="flex-grow">
-                  <span className="font-semibold text-xl text-gray-800">
-                    {candidate.name}
-                  </span>
-                  <div className="text-md text-gray-600">
-                    {candidate.party_name}
-                  </div>
-                </div>
-
-                {/* Selection Indicator */}
-                <div
-                  className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center ml-4 ${
-                    selectedCandidate === candidate.id
-                      ? "border-indigo-600 bg-indigo-600"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {selectedCandidate === candidate.id && (
-                    <div className="w-3 h-3 rounded-full bg-white"></div>
-                  )}
-                </div>
-              </div>
-            ))
+        {/* Main Content Area */}
+        <div className="p-6 sm:p-8 bg-gray-50/30">
+          
+          {error ? (
+             <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center justify-center">
+               <AlertCircle className="h-5 w-5 mr-2" /> {error}
+             </div>
           ) : (
-            <p className="text-center text-gray-500">
-              No candidates found for this election.
-            </p>
+            <div className="grid grid-cols-1 gap-4">
+              {candidates.length > 0 ? (
+                candidates.map((candidate) => (
+                  <div
+                    key={candidate.id}
+                    onClick={() => setSelectedCandidate(candidate.id)}
+                    className={`
+                      relative group flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ease-in-out
+                      ${selectedCandidate === candidate.id 
+                        ? "border-indigo-600 bg-white shadow-md ring-4 ring-indigo-50" 
+                        : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm"
+                      }
+                    `}
+                  >
+                    {/* Symbol Image */}
+                    <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gray-50 rounded-lg p-2 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                      {candidate.symbol ? (
+                        <img
+                          src={candidate.symbol}
+                          alt="Symbol"
+                          className="w-full h-full object-contain"
+                          onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
+                        />
+                      ) : null}
+                      {/* Fallback Icon */}
+                      <User className={`h-8 w-8 text-gray-300 ${candidate.symbol ? 'hidden' : 'block'}`} />
+                    </div>
+
+                    {/* Text Info */}
+                    <div className="ml-4 sm:ml-6 flex-grow min-w-0">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                        {candidate.name}
+                      </h3>
+                      <p className="text-sm font-medium text-indigo-600 mt-0.5 truncate">
+                        {candidate.party_name}
+                      </p>
+                    </div>
+
+                    {/* Radio Indicator */}
+                    <div className={`
+                      h-6 w-6 rounded-full border-2 flex items-center justify-center ml-4 flex-shrink-0 transition-colors
+                      ${selectedCandidate === candidate.id ? "border-indigo-600 bg-indigo-600" : "border-gray-300 group-hover:border-indigo-400"}
+                    `}>
+                      {selectedCandidate === candidate.id && (
+                        <div className="h-2.5 w-2.5 bg-white rounded-full animate-in zoom-in duration-200" />
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">No candidates available for this election.</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* --- Voting Form --- */}
-        <form onSubmit={handleVoteSubmit} className="mt-8 flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm with Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password to confirm vote"
-              className="w-full p-2 border border-gray-300 rounded-lg"
-              required
-              disabled={selectedCandidate === null}
-            />
-          </div>
-          {voteError && (
-            <p className="text-red-500 text-sm text-center -my-2">{voteError}</p>
-          )}
-          <button
-            type="submit"
-            disabled={
-              selectedCandidate === null || isVoting || candidates.length === 0
-            }
-            className="w-full btn bg-green-600 text-white py-3 text-base font-semibold rounded-lg hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isVoting ? "Submitting..." : "Submit Final Vote"}
-          </button>
-        </form>
+        {/* Voting Footer / Action Area */}
+        <div className="bg-white border-t border-gray-100 p-6 sm:p-8">
+          <form onSubmit={handleVoteSubmit} className="max-w-md mx-auto space-y-6">
+            
+            {/* Password Input */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Confirm Identity to Vote
+              </label>
+              <div className="relative rounded-xl shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={!selectedCandidate || isVoting}
+                  className="block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-xl p-3.5 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 border"
+                  placeholder="Enter your login password"
+                  required
+                />
+              </div>
+              {voteError && (
+                <p className="mt-2 text-sm text-red-600 flex items-center justify-center animate-pulse">
+                  <AlertCircle className="h-4 w-4 mr-1" /> {voteError}
+                </p>
+              )}
+            </div>
 
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="w-full text-center text-indigo-600 hover:underline mt-4"
-        >
-          Cancel and Return to Dashboard
-        </button>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={!selectedCandidate || !password || isVoting}
+              className={`
+                w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-base font-bold text-white transition-all
+                ${!selectedCandidate || !password || isVoting
+                  ? "bg-gray-300 cursor-not-allowed shadow-none" 
+                  : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5"
+                }
+              `}
+            >
+              {isVoting ? (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Processing Vote...
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  Submit Final Vote <CheckCircle className="ml-2 h-5 w-5" />
+                </span>
+              )}
+            </button>
+            
+            <p className="text-xs text-center text-gray-400">
+              By clicking submit, you confirm that this is your own choice and you are voting freely.
+            </p>
+          </form>
+        </div>
+
       </div>
     </div>
   );

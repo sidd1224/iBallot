@@ -1,17 +1,10 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import {
-  Vote,
-  Clock,
-  CheckCircle,
-  Calendar
-} from "lucide-react";
+import { Vote } from "lucide-react"; // Removed unused imports
 
 const Elections = () => {
   const navigate = useNavigate();
-
-  const user = JSON.parse(sessionStorage.getItem("user"));
   const token = sessionStorage.getItem("token");
   
   const [elections, setElections] = useState([]);
@@ -71,58 +64,35 @@ const Elections = () => {
     }
   };
 
-  // ✅ 3. WebSocket Listener for Live Updates
+  // 3. WebSocket Listener
   useEffect(() => {
     if (!selectedElection) return;
-
-    // Determine WS URL (Adjust port 5000 if your backend is different)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = process.env.NODE_ENV === 'production' 
       ? window.location.host 
       : 'localhost:5000'; 
-    
     const ws = new WebSocket(`${protocol}//${host}/ws`);
 
-    ws.onopen = () => console.log("✅ Connected to Live Election Updates");
-    
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
-        // Filter updates for ONLY the currently viewed election
         if (data.type === "VOTE_UPDATE" && data.electionId === selectedElection.id) {
-          
-          setCandidateList((prevCandidates) => {
-            const updatedCandidates = prevCandidates.map((c) => {
-              if (c.candidate_id === data.candidateId) {
-                // Increment vote locally
-                const newVotes = (parseInt(c.votes) + 1).toString();
-                return { ...c, votes: newVotes };
-              }
-              return c;
-            });
-
-            // Recalculate Winner locally so UI stays consistent
-            const sorted = [...updatedCandidates].sort((a, b) => parseInt(b.votes) - parseInt(a.votes));
-            const newWinner = sorted[0];
-
-            setVoteStats((prevStats) => ({
-              ...prevStats,
-              totalVotes: (parseInt(prevStats?.totalVotes || 0) + 1),
-              winner: newWinner
+          setCandidateList((prev) => {
+            const updated = prev.map((c) => 
+              c.candidate_id === data.candidateId ? { ...c, votes: (parseInt(c.votes) + 1).toString() } : c
+            );
+            const sorted = [...updated].sort((a, b) => parseInt(b.votes) - parseInt(a.votes));
+            setVoteStats((prev) => ({
+              ...prev,
+              totalVotes: (parseInt(prev?.totalVotes || 0) + 1),
+              winner: sorted[0]
             }));
-
-            return updatedCandidates;
+            return updated;
           });
         }
-      } catch (err) {
-        console.error("WS Parse Error:", err);
-      }
+      } catch (err) { console.error("WS Error", err); }
     };
-
-    return () => {
-      ws.close();
-    };
+    return () => ws.close();
   }, [selectedElection]);
 
   const handleBack = () => {
@@ -134,8 +104,8 @@ const Elections = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center pb-4 border-b border-gray-100">
-        <h2 className="text-2xl font-bold text-gray-900">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-gray-100 gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
             {selectedElection ? "Election Breakdown" : "Active Elections"}
         </h2>
         {selectedElection && (
@@ -146,7 +116,7 @@ const Elections = () => {
       </div>
 
       {!selectedElection && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {elections.length > 0 ? (
                 elections.map((election) => (
                     <div key={election.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
@@ -167,7 +137,7 @@ const Elections = () => {
                     </div>
                 ))
             ) : (
-                <div className="col-span-3 text-center py-12 text-gray-500">No active elections found.</div>
+                <div className="col-span-full text-center py-12 text-gray-500">No active elections found.</div>
             )}
         </div>
       )}
@@ -178,15 +148,15 @@ const Elections = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-indigo-600 text-white rounded-xl p-6 shadow-lg">
                     <p className="text-indigo-200 text-sm font-medium uppercase tracking-wide mb-1">Total Votes</p>
-                    <h3 className="text-4xl font-bold">{detailsLoading ? "..." : voteStats?.totalVotes || "0"}</h3>
+                    <h3 className="text-3xl sm:text-4xl font-bold">{detailsLoading ? "..." : voteStats?.totalVotes || "0"}</h3>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                    <p className="text-gray-500 text-sm font-medium uppercase tracking-wide mb-1">Leading Candidate</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{detailsLoading ? "..." : voteStats?.winner?.name || "No Votes"}</h3>
+                    <p className="text-gray-500 text-sm font-medium uppercase tracking-wide mb-1">Leading</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{detailsLoading ? "..." : voteStats?.winner?.name || "No Votes"}</h3>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                     <p className="text-gray-500 text-sm font-medium uppercase tracking-wide mb-1">Constituencies Reporting</p>
-                     <h3 className="text-2xl font-bold text-gray-900">{detailsLoading ? "..." : assemblyWinners.length}</h3>
+                     <p className="text-gray-500 text-sm font-medium uppercase tracking-wide mb-1">Constituencies</p>
+                     <h3 className="text-3xl sm:text-2xl font-bold text-gray-900">{detailsLoading ? "..." : assemblyWinners.length}</h3>
                 </div>
             </div>
 
@@ -197,28 +167,28 @@ const Elections = () => {
                 </div>
                 <div className="divide-y divide-gray-100">
                     {candidateList.map((candidate) => (
-                        <div key={candidate.candidate_id} className="p-6 flex items-center justify-between hover:bg-gray-50">
-                            <div className="flex items-center space-x-4">
-                                {/* ✅ SYMBOL IMAGE ADDED HERE */}
-                                <div className="h-12 w-12 rounded-full bg-gray-50 flex items-center justify-center border overflow-hidden shrink-0">
+                        <div key={candidate.candidate_id} className="p-4 sm:p-6 flex items-center justify-between hover:bg-gray-50">
+                            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+                                {/* SYMBOL IMAGE */}
+                                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gray-50 flex items-center justify-center border overflow-hidden shrink-0">
                                     {candidate.symbol_image ? (
                                         <img 
                                           src={`http://localhost:5000/symbols/${candidate.symbol_image}`} 
                                           alt="Symbol" 
                                           className="h-full w-full object-cover"
-                                          onError={(e) => {e.target.style.display='none'}} // Fallback to Initial if image fails
+                                          onError={(e) => {e.target.style.display='none'}}
                                         />
                                     ) : (
                                         <span className="text-gray-500 font-bold">{candidate.name.charAt(0)}</span>
                                     )}
                                 </div>
                                 
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-900">{candidate.name}</h4>
-                                    <p className="text-xs text-gray-500">AC-{candidate.constituency_id} • {candidate.party}</p>
+                                <div className="min-w-0">
+                                    <h4 className="text-sm font-bold text-gray-900 truncate pr-2">{candidate.name}</h4>
+                                    <p className="text-xs text-gray-500 truncate">AC-{candidate.constituency_id} • {candidate.party}</p>
                                 </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right shrink-0 ml-2">
                                 <p className="text-lg font-bold text-indigo-600">{candidate.votes}</p>
                                 <p className="text-[10px] text-gray-400 uppercase">Votes</p>
                             </div>

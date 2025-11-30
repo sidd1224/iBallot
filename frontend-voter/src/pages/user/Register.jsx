@@ -78,30 +78,31 @@ const Register = ({ onViewChange }) => {
     <>
       <ToastContainer position="top-right" autoClose={3000} />
 
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Responsive Fix: Added px-4 and adjusted py for mobile */}
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
 
         {/* Header / Logo */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <div
-            className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
+            className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
             onClick={() => {
               if (onViewChange) onViewChange('landing');
             }}
           >
-            <Shield className="h-10 w-10 text-white" />
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Create Account</h2>
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900">Create Account</h2>
           <p className="mt-2 text-sm text-gray-600">Join the secure voting platform</p>
         </div>
 
         {/* Card Container */}
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow-xl shadow-indigo-100/50 rounded-2xl sm:px-10 border border-gray-100">
 
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
-                <AlertCircle className="h-5 w-5 mr-2" />
-                {error}
+                <AlertCircle className="h-5 w-5 mr-2 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -123,7 +124,8 @@ const Register = ({ onViewChange }) => {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter Username"
                     disabled={loading || isVerified}
-                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                    // Responsive Fix: text-base prevents iOS zoom, sm:text-sm scales it back down on desktop
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border"
                   />
                 </div>
               </div>
@@ -144,7 +146,7 @@ const Register = ({ onViewChange }) => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
-                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border"
                   />
                 </div>
               </div>
@@ -165,7 +167,7 @@ const Register = ({ onViewChange }) => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
-                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-3 border"
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border"
                   />
                 </div>
               </div>

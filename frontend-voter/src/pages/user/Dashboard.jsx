@@ -12,17 +12,17 @@ import {
   AlertCircle,
   Calendar,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Menu, // Added Menu icon
+  X     // Added X icon
 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
 
-  // ✅ sessionStorage usage preserved exactly
   const user = JSON.parse(sessionStorage.getItem('user'));
   const token = sessionStorage.getItem('token');
   const constituency = JSON.parse(sessionStorage.getItem('constituency'));
-  const hasVoted = user?.hasVoted;
 
   const [elections, setElections] = useState([]);
   const [stats, setStats] = useState({
@@ -35,10 +35,11 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [view, setView] = useState('dashboard');
   
-  // 🟢 State for Sidebar Collapse
+  // Desktop Collapse State
   const [isCollapsed, setIsCollapsed] = useState(false);
+  // Mobile Sidebar State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 🔁 Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -67,30 +68,29 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // 🖼 Status badge color helper
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Live':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'Upcoming':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Completed':
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Live': return 'bg-red-100 text-red-700 border-red-200';
+      case 'Upcoming': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'Completed': return 'bg-gray-100 text-gray-700 border-gray-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
   const SidebarItem = ({ id, icon: Icon, label }) => (
     <button
-      onClick={() => setView(id)}
-      title={isCollapsed ? label : ''} // Show tooltip on hover when collapsed
+      onClick={() => {
+        setView(id);
+        setIsMobileMenuOpen(false); // Close mobile menu on selection
+      }}
+      title={isCollapsed ? label : ''}
       className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 mb-1 rounded-xl text-sm font-medium transition-all ${
         view === id ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
       }`}
     >
       <Icon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'} ${view === id ? 'text-indigo-600' : 'text-gray-400'}`} />
-      {!isCollapsed && <span className="whitespace-nowrap transition-opacity duration-300">{label}</span>}
+      {/* Show label if NOT collapsed OR if we are on Mobile (where collapse doesn't apply) */}
+      {(!isCollapsed || window.innerWidth < 1024) && <span className="whitespace-nowrap transition-opacity duration-300">{label}</span>}
     </button>
   );
 
@@ -115,24 +115,46 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* SIDEBAR */}
+    <div className="min-h-screen bg-gray-50 flex relative">
+      
+      {/* --- MOBILE OVERLAY --- */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* --- SIDEBAR --- */}
       <aside 
-        className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-gray-200 h-screen sticky top-0 transition-all duration-300 ease-in-out`}
+        className={`
+          fixed lg:sticky top-0 h-screen bg-white border-r border-gray-200 z-50 transition-all duration-300 ease-in-out
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} 
+          ${isCollapsed ? 'lg:w-20' : 'lg:w-72'} 
+          w-64
+        `}
       >
         {/* Header */}
-        <div className={`p-6 flex items-center ${isCollapsed ? 'flex-col justify-center gap-4' : 'justify-between'} border-b border-gray-100`}>
+        <div className={`p-6 flex items-center ${isCollapsed ? 'lg:flex-col lg:justify-center lg:gap-4' : 'justify-between'} border-b border-gray-100`}>
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 p-2 rounded-lg shrink-0"><Shield className="h-6 w-6 text-white" /></div>
-            {!isCollapsed && <span className="text-xl font-bold whitespace-nowrap overflow-hidden transition-all">iBallot</span>}
+            {(!isCollapsed || window.innerWidth < 1024) && <span className="text-xl font-bold whitespace-nowrap overflow-hidden transition-all">iBallot</span>}
           </div>
           
-          {/* Collapse Toggle Button */}
+          {/* Desktop Collapse Toggle */}
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+            className="hidden lg:block p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+
+          {/* Mobile Close Button */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+          >
+            <X className="h-6 w-6" />
           </button>
         </div>
 
@@ -143,11 +165,11 @@ const Dashboard = () => {
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-100">
-          <div className={`flex items-center p-3 rounded-xl bg-gray-50 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
-            <div className={`h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 ${isCollapsed ? '' : 'mr-3'}`}>
+          <div className={`flex items-center p-3 rounded-xl bg-gray-50 mb-3 ${isCollapsed ? 'lg:justify-center' : ''}`}>
+            <div className={`h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 ${isCollapsed ? '' : 'lg:mr-3 mr-3'}`}>
               {user?.username?.charAt(0).toUpperCase() || 'U'}
             </div>
-            {!isCollapsed && (
+            {(!isCollapsed || window.innerWidth < 1024) && (
                 <div className="overflow-hidden">
                     <p className="text-sm font-semibold truncate w-32">{user?.username || 'User'}</p>
                     <p className="text-xs text-gray-500">Verified Voter</p>
@@ -158,23 +180,33 @@ const Dashboard = () => {
           <button
             onClick={() => { sessionStorage.clear(); navigate('/login'); }}
             title={isCollapsed ? "Sign Out" : ""}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-center'} px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-all`}
+            className={`w-full flex items-center ${isCollapsed ? 'lg:justify-center' : 'justify-center'} px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-all`}
           >
-            <LogOut className={`h-4 w-4 ${isCollapsed ? '' : 'mr-2'}`} /> 
-            {!isCollapsed && "Sign Out"}
+            <LogOut className={`h-4 w-4 ${isCollapsed ? '' : 'lg:mr-2 mr-2'}`} /> 
+            {(!isCollapsed || window.innerWidth < 1024) && "Sign Out"}
           </button>
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-6xl mx-auto">
+      {/* --- MAIN CONTENT --- */}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-6xl mx-auto">
 
-          {/* HEADER */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {user?.username || 'Voter'} 👋</h1>
-              <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening in your elections</p>
+          {/* HEADER with Mobile Menu Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+            <div className="flex items-center gap-4">
+              {/* Mobile Hamburger */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="lg:hidden p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+              
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {user?.username || 'Voter'} 👋</h1>
+                <p className="text-sm text-gray-500 mt-1">Here&apos;s what&apos;s happening in your elections</p>
+              </div>
             </div>
           </div>
 
@@ -190,7 +222,7 @@ const Dashboard = () => {
           {view === 'dashboard' && (
             <>
               {/* STATS */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                   <LayoutDashboard className="h-6 w-6 text-blue-600 mb-3" />
                   <div className="text-2xl font-bold">{stats.activeRegistrations + stats.upcomingElections}</div>
@@ -219,31 +251,31 @@ const Dashboard = () => {
                 <div className="divide-y divide-gray-100">
                   {elections.length > 0 ? (
                     elections.map((election) => (
-                      <div key={election.id} className="p-6 hover:bg-gray-50 transition sm:flex justify-between items-center">
+                      <div key={election.id} className="p-6 hover:bg-gray-50 transition flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                         <div className="flex items-start gap-4">
-                          <div className="bg-gray-100 p-3 rounded-xl">
+                          <div className="bg-gray-100 p-3 rounded-xl shrink-0">
                             <Vote className="h-6 w-6 text-gray-600" />
                           </div>
-                          <div>
-                            <h3 className="text-base font-semibold">{election.title}</h3>
-                            <p className="text-sm text-gray-500 mt-1">{election.description}</p>
+                          <div className="min-w-0">
+                            <h3 className="text-base font-semibold truncate">{election.title}</h3>
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-1">{election.description}</p>
                             <p className="text-xs text-gray-400 mt-2 flex items-center">
                               <Calendar className="h-3 w-3 mr-1" /> {election.date} - {election.endDate}
                             </p>
                           </div>
                         </div>
 
-                        <div className="mt-4 sm:mt-0 flex items-center">
-                          <span className={`px-3 py-1 rounded-full border text-xs ${getStatusColor(election.status)}`}>{election.status}</span>
+                        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0">
+                          <span className={`px-3 py-1 rounded-full border text-xs whitespace-nowrap ${getStatusColor(election.status)}`}>{election.status}</span>
 
                           {!election.hasVoted && election.status === 'Live' && (
-                            <button onClick={() => handleProceedToVote(election)} className="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm">
+                            <button onClick={() => handleProceedToVote(election)} className="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm whitespace-nowrap">
                               Vote Now
                             </button>
                           )}
 
                           {election.hasVoted && (
-                            <div className="ml-4 flex items-center text-green-600 px-4 py-2 bg-green-50 rounded-xl border text-sm border-green-100">
+                            <div className="ml-4 flex items-center text-green-600 px-4 py-2 bg-green-50 rounded-xl border text-sm border-green-100 whitespace-nowrap">
                               <CheckCircle className="h-4 w-4 mr-2" /> Voted
                             </div>
                           )}

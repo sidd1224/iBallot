@@ -16,16 +16,18 @@ import {
   Plus,
   Upload,
   Activity,
-  ArrowRight
+  ArrowRight,
+  Database
 } from 'lucide-react';
 
 // --- UI Helper Components ---
-const StatCard = ({ title, value, icon, color = "indigo" }) => {
+const StatCard = ({ title, value, icon, color = "indigo", subtitle }) => {
     const colorClasses = {
         indigo: "text-indigo-600 bg-indigo-50",
         green: "text-green-600 bg-green-50",
         blue: "text-blue-600 bg-blue-50",
-        orange: "text-orange-600 bg-orange-50"
+        orange: "text-orange-600 bg-orange-50",
+        teal: "text-teal-600 bg-teal-50"
     };
 
     return (
@@ -36,6 +38,7 @@ const StatCard = ({ title, value, icon, color = "indigo" }) => {
             <div>
                 <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">{title}</p>
                 <p className="text-2xl font-bold text-gray-900">{value}</p>
+                {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
             </div>
         </div>
     );
@@ -43,34 +46,20 @@ const StatCard = ({ title, value, icon, color = "indigo" }) => {
 
 // --- Page-Specific Components ---
 
-// ✅ UPDATED: HomePage now accepts 'setCurrentPage' to handle navigation
 const HomePage = ({ adminToken, isActive, setCurrentPage }) => {
-    const [stats, setStats] = useState({ totalVoters: 0, activeElections: 0, totalCandidates: 0 });
-    const [liveElection, setLiveElection] = useState(null);
+    const [stats, setStats] = useState({ totalEligible: 0, totalRegistered: 0, assemblyData: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                // 1. Fetch Summary Stats
                 const statsRes = await axios.get(`/admin/dashboard/summary`, {
                     headers: { Authorization: adminToken }
                 });
                 if (statsRes.data.success) {
                     setStats(statsRes.data.stats);
                 }
-
-                // 2. Fetch Elections to find if one is LIVE
-                const electionsRes = await axios.get(`/admin/elections`, {
-                    headers: { Authorization: adminToken }
-                });
-                const now = new Date();
-                const currentLive = electionsRes.data.elections.find(e => 
-                    new Date(e.start_time) <= now && new Date(e.end_time) >= now
-                );
-                setLiveElection(currentLive || null);
-
             } catch (error) {
                 console.error("Failed to fetch dashboard data:", error);
             } finally {
@@ -83,103 +72,102 @@ const HomePage = ({ adminToken, isActive, setCurrentPage }) => {
         }
     }, [adminToken, isActive]);
 
+    // Calculate conversion rate for the progress bar
+    const percentage = stats.totalEligible > 0 
+      ? ((stats.totalRegistered / stats.totalEligible) * 100).toFixed(1) 
+      : 0;
+
     return (
         <div className="space-y-8">
             {/* 1. Top Level Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <StatCard 
-                    title="Total Voters" 
-                    value={loading ? '...' : stats.totalVoters} 
-                    icon={<Users className="h-6 w-6" />} 
+                    title="Total Eligible Voters (ECI)" 
+                    value={loading ? '...' : stats.totalEligible.toLocaleString()} 
+                    icon={<Database className="h-6 w-6" />} 
                     color="blue"
+                    subtitle="Source: ECI Admin Database"
                 />
                 <StatCard 
-                    title="Active Elections" 
-                    value={loading ? '...' : stats.activeElections} 
-                    icon={<Vote className="h-6 w-6" />} 
+                    title="Registered Users (App)" 
+                    value={loading ? '...' : stats.totalRegistered.toLocaleString()} 
+                    icon={<Users className="h-6 w-6" />} 
                     color="green"
-                />
-                <StatCard 
-                    title="Candidates" 
-                    value={loading ? '...' : stats.totalCandidates} 
-                    icon={<FileText className="h-6 w-6" />} 
-                    color="orange"
+                    subtitle={`${percentage}% of eligible voters onboarded`}
                 />
             </div>
 
-            {/* 2. LIVE Election Status (Conditional) */}
-            {liveElection ? (
-                <div className="bg-gradient-to-r from-red-50 to-white border border-red-100 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Activity className="h-32 w-32 text-red-600" />
+            {/* 2. Quick Actions (Preserved) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button 
+                    onClick={() => setCurrentPage('elections')}
+                    className="group bg-white p-4 rounded-xl border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all text-left flex items-center gap-3"
+                >
+                    <div className="bg-indigo-50 p-2 rounded-lg group-hover:bg-indigo-600 transition-colors">
+                        <Plus className="h-5 w-5 text-indigo-600 group-hover:text-white" />
                     </div>
-                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <div className="flex items-center gap-2 text-red-600 font-bold mb-1">
-                                <span className="relative flex h-3 w-3">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                                </span>
-                                LIVE NOW
-                            </div>
-                            <h3 className="text-2xl font-bold text-gray-900">{liveElection.name}</h3>
-                            <p className="text-gray-600 text-sm mt-1">
-                                Ends on: {new Date(liveElection.end_time).toLocaleString()}
-                            </p>
-                        </div>
-                        <button 
-                            onClick={() => setCurrentPage('results')}
-                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-red-200 transition-all flex items-center gap-2"
-                        >
-                            Monitor Live Results <ArrowRight className="h-5 w-5" />
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-center justify-between">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900">No Elections Currently Live</h3>
-                        <p className="text-gray-500 text-sm">Schedule a new election to get started.</p>
-                    </div>
-                    <button 
-                        onClick={() => setCurrentPage('elections')}
-                        className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1"
-                    >
-                        Schedule Now <ArrowRight className="h-4 w-4" />
-                    </button>
-                </div>
-            )}
+                    <span className="font-semibold text-gray-700 group-hover:text-indigo-600">Create New Election</span>
+                </button>
 
-            {/* 3. Quick Actions Grid */}
-            <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button 
-                        onClick={() => setCurrentPage('elections')}
-                        className="group bg-white p-6 rounded-2xl border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all text-left flex items-start gap-4"
-                    >
-                        <div className="bg-indigo-50 p-3 rounded-xl group-hover:bg-indigo-600 transition-colors">
-                            <Plus className="h-6 w-6 text-indigo-600 group-hover:text-white" />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Create New Election</h4>
-                            <p className="text-sm text-gray-500 mt-1">Set up a new State or Parliamentary election.</p>
-                        </div>
-                    </button>
+                <button 
+                    onClick={() => setCurrentPage('candidates')}
+                    className="group bg-white p-4 rounded-xl border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all text-left flex items-center gap-3"
+                >
+                    <div className="bg-indigo-50 p-2 rounded-lg group-hover:bg-indigo-600 transition-colors">
+                        <Upload className="h-5 w-5 text-indigo-600 group-hover:text-white" />
+                    </div>
+                    <span className="font-semibold text-gray-700 group-hover:text-indigo-600">Upload Candidates</span>
+                </button>
+            </div>
 
-                    <button 
-                        onClick={() => setCurrentPage('candidates')}
-                        className="group bg-white p-6 rounded-2xl border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all text-left flex items-start gap-4"
-                    >
-                        <div className="bg-indigo-50 p-3 rounded-xl group-hover:bg-indigo-600 transition-colors">
-                            <Upload className="h-6 w-6 text-indigo-600 group-hover:text-white" />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Upload Candidates</h4>
-                            <p className="text-sm text-gray-500 mt-1">Bulk upload candidate CSVs and party symbols.</p>
-                        </div>
-                    </button>
+            {/* 3. Assembly Breakdown Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-gray-500" /> 
+                        Constituency-wise Voter Stats
+                    </h3>
                 </div>
+                
+                {loading ? (
+                    <div className="p-8 text-center text-gray-500">Loading data...</div>
+                ) : stats.assemblyData.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-50 text-gray-500 uppercase font-medium text-xs">
+                                <tr>
+                                    <th className="px-6 py-3">Assembly ID (AC)</th>
+                                    <th className="px-6 py-3 text-right">Total Eligible (ECI)</th>
+                                    <th className="px-6 py-3 text-right">Registered (App)</th>
+                                    <th className="px-6 py-3 text-right">Onboarding %</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {stats.assemblyData.map((row) => {
+                                    const rowPercent = row.eligible > 0 ? ((row.registered / row.eligible) * 100).toFixed(1) : 0;
+                                    return (
+                                        <tr key={row.ac_id} className="hover:bg-gray-50 transition">
+                                            <td className="px-6 py-4 font-medium text-gray-900">AC-{row.ac_id}</td>
+                                            <td className="px-6 py-4 text-right text-gray-600">{row.eligible.toLocaleString()}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-indigo-600">{row.registered.toLocaleString()}</td>
+                                            <td className="px-6 py-4 text-right">
+                                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                    parseFloat(rowPercent) > 50 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    {rowPercent}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-gray-500 italic">
+                        No constituency data found. Ensure ECI data is seeded.
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -373,7 +361,19 @@ const CandidatesPage = ({ adminToken, isActive }) => {
                 const res = await axios.get(`/admin/elections`, {
                     headers: { Authorization: adminToken },
                 });
-                setElections(res.data.elections);
+                
+                // ✅ UPDATED: Sort by latest ID and keep ONLY the latest one
+                const allElections = res.data.elections || [];
+                const sorted = [...allElections].sort((a, b) => b.election_id - a.election_id);
+
+                if (sorted.length > 0) {
+                    const latest = sorted[0];
+                    setElections([latest]); // Only show the latest
+                    setElectionId(latest.election_id); // Auto-select it
+                } else {
+                    setElections([]);
+                }
+
             } catch (err) {
                 console.error("Failed to fetch elections for dropdown:", err);
             }
@@ -429,19 +429,21 @@ const CandidatesPage = ({ adminToken, isActive }) => {
             <form onSubmit={handleUpload} className="space-y-6 max-w-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Election</label>
+                        {/* ✅ Dropdown will now show only the ONE latest election */}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Selected Election</label>
                         <select 
                             value={electionId} 
                             onChange={e => setElectionId(e.target.value)} 
                             required
                             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                         >
-                            <option value="">-- Select Election --</option>
+                            {/* Removed placeholder to force selection */}
                             {elections.map(e => (
                                 <option key={e.election_id} value={e.election_id}>
-                                    {e.name} (ID: {e.election_id})
+                                    {e.name} (Latest - ID: {e.election_id})
                                 </option>
                             ))}
+                            {elections.length === 0 && <option value="">No elections found</option>}
                         </select>
                     </div>
                     <div>

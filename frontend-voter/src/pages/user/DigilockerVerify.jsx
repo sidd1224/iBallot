@@ -2,17 +2,16 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { useVerification } from '../../context/VerificationContext';
-import BrandLogo from '../../components/BrandLogo';
+// Removed unused BrandLogo import if it's not being used or provided
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Shield, Lock, AlertCircle, CheckCircle, ExternalLink, Phone, Loader2, ArrowLeft } from 'lucide-react';
+import { Shield, Lock, AlertCircle, CheckCircle, ExternalLink, Phone, ArrowLeft } from 'lucide-react';
 
 function DigilockerVerify({ onViewChange }) {
   const {
     phoneNumber, setPhoneNumber,
     setVerificationData,
     setIsVerified,
-    username, password // But we are NOT using them in this page input
   } = useVerification();
 
   const [loading, setLoading] = useState(false);
@@ -60,34 +59,33 @@ function DigilockerVerify({ onViewChange }) {
     <>
       <ToastContainer position="top-right" autoClose={3000} />
 
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      {/* Responsive Fix: Adjusted Padding */}
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
 
-        {/* HEADER SECTION (from Register1 design) */}
+        {/* HEADER SECTION */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <div
-            className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
+            className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-blue-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
             onClick={() => (onViewChange ? onViewChange('landing') : null)}
           >
-            <Shield className="h-10 w-10 text-white" />
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
           </div>
 
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Identity Verification</h2>
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900">Identity Verification</h2>
           <p className="mt-2 text-sm text-gray-600">Verify your identity securely via DigiLocker</p>
         </div>
 
-        {/* MAIN CARD (design from Verify1) */}
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* MAIN CARD */}
+        <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow-xl shadow-blue-100/50 rounded-2xl sm:px-10 border border-gray-100 text-center">
 
-            {/* ERROR BOX (from original functionality */}
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm text-left">
-                <AlertCircle className="h-5 w-5 mr-2" />
-                {error}
+                <AlertCircle className="h-5 w-5 mr-2 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
-            {/* VERIFY FORM (functionality preserved) */}
             <form className="space-y-6" onSubmit={handleVerify}>
               {/* Phone Input */}
               <div className="text-left">
@@ -103,7 +101,8 @@ function DigilockerVerify({ onViewChange }) {
                     type="tel"
                     name="phone"
                     id="phone"
-                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-xl p-3 border transition-all"
+                    // Responsive Fix: text-base
+                    className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-xl p-3 border transition-all"
                     placeholder="Enter your Aadhaar linked mobile"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
@@ -125,7 +124,7 @@ function DigilockerVerify({ onViewChange }) {
               </button>
             </form>
 
-            {/* CANCEL BUTTON (kept same logic, only UI changed */}
+            {/* CANCEL BUTTON */}
             <div className="mt-8 border-t border-gray-100 pt-6">
               <button
                 onClick={() => (onViewChange ? onViewChange('register') : navigate('/register'))}
@@ -136,7 +135,7 @@ function DigilockerVerify({ onViewChange }) {
               </button>
             </div>
 
-            {/* BOTTOM BADGES (from Register1 design */}
+            {/* BOTTOM BADGES */}
             <div className="mt-6 text-center space-x-4">
               <span className="inline-flex items-center text-xs text-gray-500">
                 <Lock className="h-3 w-3 mr-1" /> Govt. Integration
