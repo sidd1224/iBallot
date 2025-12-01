@@ -173,7 +173,7 @@ const Elections = () => {
                                 <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gray-50 flex items-center justify-center border overflow-hidden shrink-0">
                                     {candidate.symbol_image ? (
                                         <img 
-                                          src={`http://localhost:5000/symbols/${candidate.symbol_image}`} 
+                                          src={`/symbols/${candidate.symbol_image}`} 
                                           alt="Symbol" 
                                           className="h-full w-full object-cover"
                                           onError={(e) => {e.target.style.display='none'}}
