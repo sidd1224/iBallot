@@ -38,8 +38,6 @@ const storage = multer.diskStorage({
 });
 
 // --- 2. File Filter (CRITICAL FIX) ---
-// This function runs BEFORE the file is written. 
-// If we return false, Multer skips the file entirely (no permission errors).
 const fileFilter = (req, file, cb) => {
   if (file.fieldname === "symbols") {
     const uploadDir = path.join("public", "symbols");
@@ -47,10 +45,8 @@ const fileFilter = (req, file, cb) => {
 
     if (fs.existsSync(targetPath)) {
       console.log(`⚠️ Symbol already exists, skipping write: ${file.originalname}`);
-      // ✅ Return FALSE to skip this file safely
       cb(null, false);
     } else {
-      // ✅ Return TRUE to accept and write the file
       cb(null, true);
     }
   } else {
@@ -167,6 +163,41 @@ router.post(
             added++;
           }
           console.log("Finished processing CSV rows.");
+
+          // --- AUTOMATIC NOTA INSERTION START ---
+          console.log("Checking for NOTA candidates...");
+          for (const constituencyId of uniqueConstituencyIds) {
+            // Check if NOTA already exists for this election & constituency
+            const notaCheck = await client.query(
+              `SELECT id FROM candidates WHERE election_id = $1 AND constituency_id = $2 AND party_name = 'NOTA'`,
+              [electionId, constituencyId]
+            );
+
+            if (notaCheck.rows.length === 0) {
+              console.log(`Adding NOTA for constituency ${constituencyId}...`);
+              
+              const candidateId = constituencyCounters[constituencyId];
+              const notaName = "None of the Above";
+              const notaParty = "NOTA";
+              const notaSymbol = "nota.png"; // Ensure this image is in public/symbols/
+
+              await client.query(
+                `INSERT INTO candidates (election_id, candidate_id, candidate_name, party_name, symbol, constituency_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+                [electionId, candidateId, notaName, notaParty, notaSymbol, constituencyId]
+              );
+
+              // Add to blockchain batch list
+              if (!newCandidatesByConstituency[constituencyId]) {
+                newCandidatesByConstituency[constituencyId] = [];
+              }
+              newCandidatesByConstituency[constituencyId].push(notaName);
+
+              constituencyCounters[constituencyId]++;
+              added++;
+            }
+          }
+          console.log("Finished NOTA checks.");
+          // --- AUTOMATIC NOTA INSERTION END ---
 
           await client.query("COMMIT");
           console.log("Database changes committed.");

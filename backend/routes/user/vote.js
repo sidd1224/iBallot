@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const { Wallet, ethers } = require("ethers"); 
 
-// ✅ Import broadcast from your existing websocket.js
+// Import broadcast
 const { broadcast } = require("../../websocket");
 
 const blockchain = require("../../blockchain/contract");
@@ -26,7 +26,7 @@ router.post("/", async (req, res) => {
 
     client = await pool.connect();
 
-    // Authenticate user
+    // 1. Authenticate user
     const userResult = await client.query(
       "SELECT id, username, uid_hash, password FROM users WHERE username = $1",
       [username]
@@ -41,7 +41,7 @@ router.post("/", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials." });
     }
 
-    // Fetch ECI admin data
+    // 2. Fetch ECI admin data
     const eciResult = await client.query(
       "SELECT enc_private_key, ac_id, pc_id FROM eci_admin_data WHERE uid_hash = $1",
       [user.uid_hash]
@@ -51,7 +51,7 @@ router.post("/", async (req, res) => {
     }
     const eciData = eciResult.rows[0];
 
-    // Determine constituency ID
+    // 3. Determine constituency ID
     const electionTypeResult = await client.query(
       "SELECT type FROM elections WHERE election_id = $1",
       [electionId]
@@ -74,7 +74,7 @@ router.post("/", async (req, res) => {
 
     const voterHash = "0x" + user.uid_hash;
 
-    // Decrypt private key
+    // 4. Decrypt private key
     const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
     const decryptedKeyBuffer = decrypt(eciData.enc_private_key, secretKey);
     const privateKey = decryptedKeyBuffer.toString('utf8');
@@ -88,7 +88,7 @@ router.post("/", async (req, res) => {
     const nonce = await retryBlockchainCall(() => contract.getNonce(electionId, voterHash));
     const deadline = Math.floor(Date.now() / 1000) + 600; 
 
-    // Sign Vote
+    // 5. Sign Vote
     const messageHash = ethers.solidityPackedKeccak256(
       ["uint256", "bytes32", "uint256", "uint256", "uint256", "uint256"],
       [
@@ -105,7 +105,7 @@ router.post("/", async (req, res) => {
     const signature = await voterWallet.signMessage(messageBytes);
     console.log(`[Vote Route] Generated signature for voter ${username}`);
 
-    // Submit to Blockchain
+    // 6. Submit to Blockchain
     console.log(`[Vote Route] Relayer calling castVoteMeta...`);
     const tx = await retryBlockchainCall(() => contract.castVoteMeta(
       BigInt(electionId),
@@ -121,7 +121,15 @@ router.post("/", async (req, res) => {
     const receipt = await retryBlockchainCall(() => tx.wait());
     console.log(`[Vote Route] Transaction confirmed. Block: ${receipt.blockNumber}`);
 
-    // ✅ NEW: Broadcast the live vote update to all connected clients
+    // 7. ✅ LOG VOTE WITH TIMESTAMP
+    await client.query(
+      `INSERT INTO voter_logs (election_id, username, constituency_id, tx_hash, vote_time) 
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [electionId, username, constituencyId, tx.hash]
+    );
+    console.log(`[Vote Route] Vote logged in DB for user ${username}`);
+
+    // 8. Broadcast update
     broadcast({
       type: "VOTE_UPDATE",
       electionId: parseInt(electionId),

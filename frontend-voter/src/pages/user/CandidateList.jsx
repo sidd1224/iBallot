@@ -1,3 +1,4 @@
+// frontend-voter/src/pages/user/CandidateList.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -26,14 +27,12 @@ const CandidateList = () => {
   const user = JSON.parse(sessionStorage.getItem("user"));
   const token = sessionStorage.getItem("token");
 
-  // Redirect if session expired
   useEffect(() => {
     if (!user || !token) {
       navigate("/login");
     }
   }, [navigate, user, token]);
 
-  // Fetch candidates
   useEffect(() => {
     let isMounted = true;
 
@@ -50,12 +49,18 @@ const CandidateList = () => {
         });
 
         if (isMounted) {
-          const formatted = (res.data.candidates || []).map((c) => {
-            const symbolUrl = c.symbol 
-              ? `/symbols/${c.symbol.split("/").pop()}` 
-              : null;
-            return { ...c, symbol: symbolUrl };
+          let formatted = (res.data.candidates || []).map((c) => ({
+            ...c,
+            symbol: c.symbol ? `/symbols/${c.symbol.split("/").pop()}` : null
+          }));
+
+          // ✅ SORT LOGIC: Move NOTA to the bottom
+          formatted.sort((a, b) => {
+            if (a.party_name === 'NOTA') return 1;
+            if (b.party_name === 'NOTA') return -1;
+            return 0;
           });
+
           setCandidates(formatted);
         }
       } catch (err) {
@@ -74,10 +79,8 @@ const CandidateList = () => {
     return () => { isMounted = false; };
   }, [electionId, assemblyId, token, user, navigate]);
 
-  // Handle Vote
   const handleVoteSubmit = async (e) => {
     e.preventDefault();
-
     if (selectedCandidate === null) {
       setVoteError("Please select a candidate before submitting.");
       return;
@@ -102,7 +105,6 @@ const CandidateList = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Success UI handling could be improved with a modal, but alert is standard for now
       alert(`✅ Vote cast successfully!\nTx Hash: ${response.data.txHash}`);
       sessionStorage.clear();
       navigate("/login");
@@ -131,8 +133,6 @@ const CandidateList = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      
-      {/* Top Navigation Bar */}
       <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between">
         <button 
           onClick={() => navigate("/dashboard")}
@@ -147,8 +147,6 @@ const CandidateList = () => {
       </div>
 
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl shadow-indigo-100/50 border border-gray-100 overflow-hidden">
-        
-        {/* Header Section */}
         <div className="bg-white border-b border-gray-100 p-6 sm:p-8 text-center">
           <div className="inline-flex items-center justify-center p-3 bg-indigo-50 rounded-xl mb-4">
             <Vote className="h-8 w-8 text-indigo-600" />
@@ -162,9 +160,7 @@ const CandidateList = () => {
           </p>
         </div>
 
-        {/* Main Content Area */}
         <div className="p-6 sm:p-8 bg-gray-50/30">
-          
           {error ? (
              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center justify-center">
                <AlertCircle className="h-5 w-5 mr-2" /> {error}
@@ -174,17 +170,18 @@ const CandidateList = () => {
               {candidates.length > 0 ? (
                 candidates.map((candidate) => (
                   <div
-                    key={candidate.id}
-                    onClick={() => setSelectedCandidate(candidate.id)}
+                    key={candidate.candidate_id}
+                    onClick={() => setSelectedCandidate(candidate.candidate_id)}
                     className={`
                       relative group flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ease-in-out
-                      ${selectedCandidate === candidate.id 
+                      ${selectedCandidate === candidate.candidate_id 
                         ? "border-indigo-600 bg-white shadow-md ring-4 ring-indigo-50" 
-                        : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm"
+                        : candidate.party_name === 'NOTA' 
+                          ? "border-red-200 bg-red-50 hover:bg-red-100" 
+                          : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm"
                       }
                     `}
                   >
-                    {/* Symbol Image */}
                     <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gray-50 rounded-lg p-2 border border-gray-100 flex items-center justify-center flex-shrink-0">
                       {candidate.symbol ? (
                         <img
@@ -194,26 +191,23 @@ const CandidateList = () => {
                           onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
                         />
                       ) : null}
-                      {/* Fallback Icon */}
                       <User className={`h-8 w-8 text-gray-300 ${candidate.symbol ? 'hidden' : 'block'}`} />
                     </div>
 
-                    {/* Text Info */}
                     <div className="ml-4 sm:ml-6 flex-grow min-w-0">
-                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-                        {candidate.name}
+                      <h3 className={`text-lg sm:text-xl font-bold truncate ${candidate.party_name === 'NOTA' ? 'text-red-700' : 'text-gray-900'}`}>
+                        {candidate.candidate_name}
                       </h3>
                       <p className="text-sm font-medium text-indigo-600 mt-0.5 truncate">
                         {candidate.party_name}
                       </p>
                     </div>
 
-                    {/* Radio Indicator */}
                     <div className={`
                       h-6 w-6 rounded-full border-2 flex items-center justify-center ml-4 flex-shrink-0 transition-colors
-                      ${selectedCandidate === candidate.id ? "border-indigo-600 bg-indigo-600" : "border-gray-300 group-hover:border-indigo-400"}
+                      ${selectedCandidate === candidate.candidate_id ? "border-indigo-600 bg-indigo-600" : "border-gray-300 group-hover:border-indigo-400"}
                     `}>
-                      {selectedCandidate === candidate.id && (
+                      {selectedCandidate === candidate.candidate_id && (
                         <div className="h-2.5 w-2.5 bg-white rounded-full animate-in zoom-in duration-200" />
                       )}
                     </div>
@@ -228,11 +222,8 @@ const CandidateList = () => {
           )}
         </div>
 
-        {/* Voting Footer / Action Area */}
         <div className="bg-white border-t border-gray-100 p-6 sm:p-8">
           <form onSubmit={handleVoteSubmit} className="max-w-md mx-auto space-y-6">
-            
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Confirm Identity to Vote
@@ -258,7 +249,6 @@ const CandidateList = () => {
               )}
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={!selectedCandidate || !password || isVoting}
@@ -287,7 +277,6 @@ const CandidateList = () => {
             </p>
           </form>
         </div>
-
       </div>
     </div>
   );
