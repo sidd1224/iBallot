@@ -343,7 +343,6 @@ const ElectionsPage = ({ adminToken, isActive }) => {
     </div>
   );
 };
-
 const CandidatesPage = ({ adminToken, isActive }) => {
     const [file, setFile] = useState(null); 
     const [symbolFiles, setSymbolFiles] = useState(null); 
@@ -362,14 +361,13 @@ const CandidatesPage = ({ adminToken, isActive }) => {
                     headers: { Authorization: adminToken },
                 });
                 
-                // ✅ UPDATED: Sort by latest ID and keep ONLY the latest one
                 const allElections = res.data.elections || [];
                 const sorted = [...allElections].sort((a, b) => b.election_id - a.election_id);
 
                 if (sorted.length > 0) {
                     const latest = sorted[0];
-                    setElections([latest]); // Only show the latest
-                    setElectionId(latest.election_id); // Auto-select it
+                    setElections([latest]); 
+                    setElectionId(latest.election_id); 
                 } else {
                     setElections([]);
                 }
@@ -429,7 +427,6 @@ const CandidatesPage = ({ adminToken, isActive }) => {
             <form onSubmit={handleUpload} className="space-y-6 max-w-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        {/* ✅ Dropdown will now show only the ONE latest election */}
                         <label className="block text-sm font-medium text-gray-700 mb-1">Selected Election</label>
                         <select 
                             value={electionId} 
@@ -437,7 +434,6 @@ const CandidatesPage = ({ adminToken, isActive }) => {
                             required
                             className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                         >
-                            {/* Removed placeholder to force selection */}
                             {elections.map(e => (
                                 <option key={e.election_id} value={e.election_id}>
                                     {e.name} (Latest - ID: {e.election_id})
@@ -458,14 +454,28 @@ const CandidatesPage = ({ adminToken, isActive }) => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Candidates CSV File</label>
-                    <input type="file" name="candidatesCsvInput" onChange={e => setFile(e.target.files[0])} accept=".csv" required 
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition" />
+                    {/* ✅ FIXED: Broadened accept attribute for mobile support */}
+                    <input 
+                        type="file" 
+                        name="candidatesCsvInput" 
+                        onChange={e => setFile(e.target.files[0])} 
+                        accept=".csv,text/csv,application/vnd.ms-excel,application/csv,text/x-csv,application/x-csv,text/comma-separated-values,text/x-comma-separated-values" 
+                        required 
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition" 
+                    />
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Party Symbol Images (PNG, JPG)</label>
-                    <input type="file" name="symbolsInput" onChange={e => setSymbolFiles(e.target.files)} accept=".png,.jpg,.jpeg" multiple 
-                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition" />
+                    {/* ✅ FIXED: Broadened accept attribute for images too */}
+                    <input 
+                        type="file" 
+                        name="symbolsInput" 
+                        onChange={e => setSymbolFiles(e.target.files)} 
+                        accept="image/png,image/jpeg,image/jpg,.png,.jpg,.jpeg" 
+                        multiple 
+                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition" 
+                    />
                 </div>
 
                 <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white py-3 font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-70 transition-all shadow-md shadow-indigo-100">

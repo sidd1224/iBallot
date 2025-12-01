@@ -123,6 +123,15 @@ const Login = () => {
                     className="block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
+                {/* ✅ Added Forgot Password Link Here */}
+                <div className="flex justify-end text-sm mt-1">
+                  <Link 
+                    to="/forgot-password" 
+                    className="font-medium text-indigo-600 hover:text-indigo-500"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
 
               {/* Register Link */}

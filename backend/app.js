@@ -80,6 +80,8 @@ app.use("/api/vote", userAuth, require("./routes/user/vote"));
 app.use("/api/dashboard", userAuth, require("./routes/user/dashboard"));
 app.use("/api/candidates", userAuth, require("./routes/user/candidateList"));
 app.use('/api/election-stats',userAuth, require("./routes/user/electionStats"));
+// Add this near your other routes
+app.use("/api/password-reset", require("./routes/user/passwordReset"));
 
 // --- ADMIN ROUTES ---
 app.use("/admin/auth", authLimiter, require("./routes/admin/auth"));

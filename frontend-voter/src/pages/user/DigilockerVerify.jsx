@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // ✅ Added useLocation
 import { useVerification } from '../../context/VerificationContext';
-// Removed unused BrandLogo import if it's not being used or provided
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Shield, Lock, AlertCircle, CheckCircle, ExternalLink, Phone, ArrowLeft } from 'lucide-react';
@@ -17,6 +16,11 @@ function DigilockerVerify({ onViewChange }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation(); // ✅ Hook to access state passed from Login/Forgot Password
+
+  // Check if we have specific instructions on where to go next
+  const nextPath = location.state?.nextPath || '/register';
+  const successMessage = location.state?.message || "Verification successful! Returning to registration...";
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -36,11 +40,19 @@ function DigilockerVerify({ onViewChange }) {
       });
 
       if (response.data.success) {
-        toast.success("Verification successful! Returning to registration...");
+        toast.success(successMessage);
         setVerificationData(response.data.data);
         setIsVerified(true);
 
-        setTimeout(() => navigate('/register'), 2000);
+        // ✅ Dynamic Navigation: Pass verified state AND phoneNumber back to the next page
+        setTimeout(() => {
+          navigate(nextPath, { 
+            state: { 
+              verified: true, 
+              verifiedPhone: phoneNumber // Critical: Pass this back so ForgotPassword knows who to reset
+            } 
+          });
+        }, 2000);
       } else {
         setError(response.data.error || 'Verification failed. Please check your details.');
         toast.error(response.data.error || 'Verification failed.');
@@ -59,7 +71,6 @@ function DigilockerVerify({ onViewChange }) {
     <>
       <ToastContainer position="top-right" autoClose={3000} />
 
-      {/* Responsive Fix: Adjusted Padding */}
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
 
         {/* HEADER SECTION */}
@@ -101,7 +112,6 @@ function DigilockerVerify({ onViewChange }) {
                     type="tel"
                     name="phone"
                     id="phone"
-                    // Responsive Fix: text-base
                     className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-xl p-3 border transition-all"
                     placeholder="Enter your Aadhaar linked mobile"
                     value={phoneNumber}

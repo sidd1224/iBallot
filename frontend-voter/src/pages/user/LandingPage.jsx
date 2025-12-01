@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Globe, Menu, X, ArrowRight, Fingerprint, ChevronRight } from 'lucide-react';
+import { 
+  Shield, 
+  Lock, 
+  Globe, 
+  Menu, 
+  X, 
+  ArrowRight, 
+  Fingerprint, 
+  ChevronRight,
+  UserCheck,
+  FileKey,
+  Vote,
+  Database
+} from 'lucide-react';
 import Login from './Login'; 
 
 // --- Components ---
@@ -27,8 +40,8 @@ const Navbar = ({ onViewChange, currentView, isMenuOpen, setIsMenuOpen }) => (
           <button onClick={() => onViewChange('landing')} className={`text-sm font-medium transition-colors ${currentView === 'landing' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}>
             Home
           </button>
+          <a href="#how-it-works" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">Process</a>
           <a href="#features" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">Features</a>
-          <a href="#security" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">Security</a>
           <button 
             onClick={() => onViewChange('login')}
             className="bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 transition-all shadow-sm hover:shadow-md flex items-center"
@@ -56,8 +69,8 @@ const Navbar = ({ onViewChange, currentView, isMenuOpen, setIsMenuOpen }) => (
           >
             Home
           </button>
+          <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="block px-3 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50">How it Works</a>
           <a href="#features" onClick={() => setIsMenuOpen(false)} className="block px-3 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50">Features</a>
-          <a href="#security" onClick={() => setIsMenuOpen(false)} className="block px-3 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-indigo-50">Security</a>
           <div className="pt-4 border-t border-gray-100 mt-2">
             <button 
               onClick={() => { onViewChange('login'); setIsMenuOpen(false); }}
@@ -99,7 +112,13 @@ const Hero = ({ onViewChange }) => (
         >
           Vote Now
         </button>
-        <button className="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-lg hover:bg-gray-50 hover:border-gray-300 transition-all">
+        <button 
+          onClick={() => {
+            const element = document.getElementById('how-it-works');
+            if (element) element.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="w-full sm:w-auto px-8 py-4 bg-white text-gray-700 border border-gray-200 rounded-xl font-bold text-lg hover:bg-gray-50 hover:border-gray-300 transition-all"
+        >
           Learn How It Works
         </button>
       </div>
@@ -113,6 +132,67 @@ const Hero = ({ onViewChange }) => (
     </div>
   </div>
 );
+
+// ✅ NEW COMPONENT: How It Works
+const HowItWorks = () => {
+  const steps = [
+    {
+      icon: UserCheck,
+      title: "1. Verify Identity",
+      desc: "Connect your DigiLocker account to verify your Aadhaar. This ensures one person, one vote."
+    },
+    {
+      icon: FileKey,
+      title: "2. Secure Login",
+      desc: "Receive your unique credentials. Your identity is anonymized before entering the voting booth."
+    },
+    {
+      icon: Vote,
+      title: "3. Cast Vote",
+      desc: "Select your preferred candidate. Your choice is encrypted and signed with your private key."
+    },
+    {
+      icon: Database,
+      title: "4. Blockchain Record",
+      desc: "Your vote is permanently recorded on the blockchain. You get a transaction hash to verify it."
+    }
+  ];
+
+  return (
+    <div id="how-it-works" className="py-24 bg-white relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <h2 className="text-base font-semibold text-indigo-600 tracking-wide uppercase">The Process</h2>
+          <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+            How iBallot Works
+          </p>
+          <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+            A simple 4-step process designed to ensure transparency, security, and anonymity for every voter.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+          {/* Connector Line (Desktop) */}
+          <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-indigo-100 -z-10" />
+
+          {steps.map((step, index) => (
+            <div key={index} className="relative flex flex-col items-center text-center group">
+              <div className="w-24 h-24 bg-white border-4 border-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-sm group-hover:border-indigo-100 group-hover:scale-110 transition-all duration-300">
+                <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center shadow-md">
+                  <step.icon className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{step.title}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed px-2">
+                {step.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Features = () => (
   <div id="features" className="py-24 bg-gray-50">
@@ -175,8 +255,8 @@ const Footer = () => (
         <div>
           <h4 className="font-bold text-lg mb-4">Platform</h4>
           <ul className="space-y-3 text-sm text-gray-400">
-            <li><a href="#" className="hover:text-white transition-colors">How it Works</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Security</a></li>
+            <li><a href="#how-it-works" className="hover:text-white transition-colors">How it Works</a></li>
+            <li><a href="#features" className="hover:text-white transition-colors">Security</a></li>
             <li><a href="#" className="hover:text-white transition-colors">Verify Vote</a></li>
           </ul>
         </div>
@@ -216,6 +296,7 @@ const LandingPage = () => {
             />
             <div className="animate-in fade-in duration-500">
               <Hero onViewChange={setCurrentView} />
+              <HowItWorks />
               <Features />
               <Footer />
             </div>

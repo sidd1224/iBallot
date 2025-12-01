@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { VerificationProvider } from './context/VerificationContext';
+import ForgotPassword from './pages/user/ForgotPassword';
 
 // Lazy load user pages
 const Login = React.lazy(() => import('./pages/user/Login'));
@@ -37,6 +38,7 @@ function App() {
             <Route path="/LandingPage" element={<LandingPage />} />
             {/* ✅ FIXED: Dynamic params for CandidateList */}
             <Route path="/candidates/:electionId/:assemblyId" element={<CandidateList />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Default redirect to login */}
             <Route path="*" element={<Navigate to="/LandingPage" replace />} />
