@@ -127,7 +127,7 @@ router.get("/", userAuth, async (req, res) => {
           hasVoted = await retryBlockchainCall(() =>
             contract.hasVoted(
               BigInt(election.id),
-              BigInt(user.uid_hash) // voter UID hash used as identifier
+              "0x" + user.uid_hash  // voter UID hash used as identifier
             )
           );
         } catch (err) {
