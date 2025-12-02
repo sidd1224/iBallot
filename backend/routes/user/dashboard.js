@@ -4,6 +4,10 @@ const router = express.Router();
 const db = require("../../database/db");
 const userAuth = require("../../middleware/userAuth");
 
+// 🟢 Required blockchain imports
+const { contract } = require("../../blockchain/contract");
+const { retryBlockchainCall } = require("../../utils/blockchainUtils");
+
 router.get("/", userAuth, async (req, res) => {
   let client;
 
@@ -41,7 +45,7 @@ router.get("/", userAuth, async (req, res) => {
 
     const user = userQuery.rows[0];
 
-    // 2. Fetch elections (✅ removed invalid description column)
+    // 2. Fetch elections
     const electionsQuery = await client.query(
       `
       SELECT 
@@ -58,9 +62,8 @@ router.get("/", userAuth, async (req, res) => {
 
     const allElections = electionsQuery.rows;
 
-    // 3. Fetch candidates properly
-    const candidatesQuery = await client.query(
-      `
+    // 3. Fetch candidates (unused but kept)
+    await client.query(`
       SELECT
         id,
         candidate_id AS "candidateId",
@@ -70,12 +73,9 @@ router.get("/", userAuth, async (req, res) => {
         constituency_id AS "constituencyId",
         created_at AS "createdAt"
       FROM candidates
-      `
-    );
+    `);
 
-    const allCandidates = candidatesQuery.rows;
-
-    // 4. Filter elections for constituency eligibility
+    // 4. Filter constituency-based elections
     const eligibleElections = allElections.filter((election) => {
       if (!election.enabled_constituencies || election.enabled_constituencies.length === 0) {
         return true;
@@ -92,19 +92,19 @@ router.get("/", userAuth, async (req, res) => {
       return false;
     });
 
-    // 5. Fetch voting records
+    // 5. Fetch SQL vote records
     const voterHash = "0x" + user.uid_hash;
     const voteRecords = await client.query(
       `SELECT election_id FROM votes WHERE voter_hash = $1`,
       [voterHash]
     );
+    const votedElectionIds = new Set(voteRecords.rows.map((v) => v.election_id));
 
-    const votedElectionIds = new Set(voteRecords.rows.map(v => v.election_id));
-
-    // 6. Build response EXACT same shape for React
+    // 6. Build final response
     let calcStats = { active: 0, participated: 0, upcoming: 0 };
+    const formattedElections = [];
 
-    const formattedElections = eligibleElections.map((election) => {
+    for (const election of eligibleElections) {
       const now = new Date();
       const start = new Date(election.start_time);
       const end = new Date(election.end_time);
@@ -119,22 +119,44 @@ router.get("/", userAuth, async (req, res) => {
         calcStats.upcoming++;
       }
 
-      const hasVoted = votedElectionIds.has(election.id);
+      let hasVoted = false;
+
+      // 🟢 ONLY check blockchain for LIVE elections
+      if (status === "Live") {
+        try {
+          hasVoted = await retryBlockchainCall(() =>
+            contract.hasVoted(
+              BigInt(election.id),
+              BigInt(user.uid_hash) // voter UID hash used as identifier
+            )
+          );
+        } catch (err) {
+          console.error(
+            `⚠️ Blockchain hasVoted failed for election ${election.id}:`,
+            err.message
+          );
+          hasVoted = false;
+        }
+      } else {
+        // Upcoming / Completed → use SQL vote table
+        hasVoted = votedElectionIds.has(election.id);
+      }
+
       if (hasVoted) {
         calcStats.participated++;
       }
 
-      return {
+      formattedElections.push({
         id: election.id,
         title: election.title,
-        description: "No description available", // (frontend kept unchanged)
+        description: "No description available",
         type: election.type,
         date: start.toISOString().split("T")[0],
         endDate: end.toISOString().split("T")[0],
         status,
-        hasVoted
-      };
-    });
+        hasVoted,
+      });
+    }
 
     res.status(200).json({
       user: {

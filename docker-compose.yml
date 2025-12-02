@@ -1,6 +1,43 @@
 version: "3.9"
 
 services:
+
+  db:
+    container_name: iballot-db
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=appdbuser
+      - POSTGRES_PASSWORD=appdbpassword
+      - POSTGRES_DB=appdbtest
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: Load your dump.sql automatically on first startup
+      - ./backend/dump.sql:/docker-entrypoint-initdb.d/init.sql
+  
+  backend-test:
+    container_name: iballot-backend-test
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - /app/node_modules # Prevent host node_modules from overwriting container's
+    environment:
+      - PORT=8080
+      - JWT_SECRET=test_secret_key
+      # Add database variables if your tests require a real DB connection:
+      - POSTGRES_USER=appdbuser
+      - POSTGRES_PASSWORD=appdbpassword
+      - POSTGRES_DB=appdbtest
+      - DB_URL=postgresql://appdbuser:appdbpassword@db:5432/appdbtest
+    command: npm run test 
+    # If you have a database service, uncomment the depends_on section:
+    depends_on:
+      - db
   backend:
     container_name: iballot-backend
     build:
@@ -81,4 +118,5 @@ services:
 volumes:
   backend_node_modules:
   frontend_node_modules:
+  postgres_data:
   

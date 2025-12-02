@@ -51,10 +51,9 @@ const CandidateList = () => {
         if (isMounted) {
           let formatted = (res.data.candidates || []).map((c) => ({
             ...c,
-            symbol: c.symbol ? `/symbols/${c.symbol.split("/").pop()}` : null
+            symbol: c.symbol ? `/symbols/${c.symbol.split("/").pop()}` : null,
           }));
 
-          // ✅ SORT LOGIC: Move NOTA to the bottom
           formatted.sort((a, b) => {
             if (a.party_name === 'NOTA') return 1;
             if (b.party_name === 'NOTA') return -1;
@@ -170,11 +169,11 @@ const CandidateList = () => {
               {candidates.length > 0 ? (
                 candidates.map((candidate) => (
                   <div
-                    key={candidate.candidate_id}
-                    onClick={() => setSelectedCandidate(candidate.candidate_id)}
+                    key={candidate.id}
+                    onClick={() => setSelectedCandidate(candidate.id)}
                     className={`
                       relative group flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ease-in-out
-                      ${selectedCandidate === candidate.candidate_id 
+                      ${selectedCandidate === candidate.id 
                         ? "border-indigo-600 bg-white shadow-md ring-4 ring-indigo-50" 
                         : candidate.party_name === 'NOTA' 
                           ? "border-red-200 bg-red-50 hover:bg-red-100" 
@@ -196,7 +195,7 @@ const CandidateList = () => {
 
                     <div className="ml-4 sm:ml-6 flex-grow min-w-0">
                       <h3 className={`text-lg sm:text-xl font-bold truncate ${candidate.party_name === 'NOTA' ? 'text-red-700' : 'text-gray-900'}`}>
-                        {candidate.candidate_name}
+                        {candidate.name}
                       </h3>
                       <p className="text-sm font-medium text-indigo-600 mt-0.5 truncate">
                         {candidate.party_name}
@@ -205,9 +204,9 @@ const CandidateList = () => {
 
                     <div className={`
                       h-6 w-6 rounded-full border-2 flex items-center justify-center ml-4 flex-shrink-0 transition-colors
-                      ${selectedCandidate === candidate.candidate_id ? "border-indigo-600 bg-indigo-600" : "border-gray-300 group-hover:border-indigo-400"}
+                      ${selectedCandidate === candidate.id ? "border-indigo-600 bg-indigo-600" : "border-gray-300 group-hover:border-indigo-400"}
                     `}>
-                      {selectedCandidate === candidate.candidate_id && (
+                      {selectedCandidate === candidate.id && (
                         <div className="h-2.5 w-2.5 bg-white rounded-full animate-in zoom-in duration-200" />
                       )}
                     </div>
@@ -236,7 +235,7 @@ const CandidateList = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={!selectedCandidate || isVoting}
+                  disabled={selectedCandidate === null || isVoting}
                   className="block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-xl p-3.5 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 border"
                   placeholder="Enter your login password"
                   required
@@ -251,11 +250,11 @@ const CandidateList = () => {
 
             <button
               type="submit"
-              disabled={!selectedCandidate || !password || isVoting}
+              disabled={selectedCandidate === null || !password || isVoting}
               className={`
                 w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-md text-base font-bold text-white transition-all
-                ${!selectedCandidate || !password || isVoting
-                  ? "bg-gray-300 cursor-not-allowed shadow-none" 
+                ${selectedCandidate === null || !password || isVoting
+                  ? "bg-gray-300 cursor-not-allowed shadow-none"
                   : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg transform hover:-translate-y-0.5"
                 }
               `}
