@@ -488,7 +488,6 @@ const CandidatesPage = ({ adminToken, isActive }) => {
         </div>
     );
 };
-
 const ResultsPage = ({ adminToken, isActive }) => {
   const [elections, setElections] = useState([]);
   const [selectedElectionId, setSelectedElectionId] = useState("");
@@ -556,16 +555,31 @@ const ResultsPage = ({ adminToken, isActive }) => {
   useEffect(() => {
     if (!isActive || !selectedElectionId) return;
 
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    let wsHost;
+    // ✅ CORRECTED LOGIC: Properly determines WS URL for both Docker & Production
+    let wsUrl;
     try {
       const backendUrl = new URL(import.meta.env.VITE_API_URL || window.location.origin);
-      wsHost = backendUrl.hostname === "backend" ? window.location.hostname + ":5000" : window.location.host; 
-    } catch {
-      wsHost = window.location.host;
+      
+      let wsHost;
+      if (backendUrl.hostname === "backend") {
+          // Special handling for local Docker development
+          wsHost = window.location.hostname + ":5000";
+      } else {
+          // Production: Use the actual backend host from the env var
+          wsHost = backendUrl.host;
+      }
+
+      // Determine Protocol based on the Backend URL (secure vs insecure)
+      const wsProtocol = backendUrl.protocol === "https:" ? "wss:" : "ws:";
+      
+      wsUrl = `${wsProtocol}//${wsHost}/ws`;
+      
+    } catch (err) {
+      console.error("Failed to construct WebSocket URL", err);
+      // Fallback
+      wsUrl = `ws://${window.location.host}/ws`;
     }
 
-    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
     let reconnectTimer;
     let isMounted = true; 
 
@@ -597,7 +611,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
             // Update Constituency List
             setConstituencyResults((prev) =>
               prev.map((r) =>
-                Number(r.candidate_id) === Number(candidateId) // Ensure matching naming convention
+                Number(r.candidate_id) === Number(candidateId) 
                   ? { ...r, votes: Number(r.votes) + 1 }
                   : r
               ).sort((a, b) => b.votes - a.votes) // Re-sort on fly
