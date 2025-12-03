@@ -1,4 +1,4 @@
-// routes/user/dashboard.js
+// backend/routes/user/dashboard.js
 const express = require("express");
 const router = express.Router();
 const db = require("../../database/db");
@@ -62,19 +62,6 @@ router.get("/", userAuth, async (req, res) => {
 
     const allElections = electionsQuery.rows;
 
-    // 3. Fetch candidates (unused but kept)
-    await client.query(`
-      SELECT
-        id,
-        candidate_id AS "candidateId",
-        candidate_name AS "name",
-        party_name AS "party",
-        symbol,
-        constituency_id AS "constituencyId",
-        created_at AS "createdAt"
-      FROM candidates
-    `);
-
     // 4. Filter constituency-based elections
     const eligibleElections = allElections.filter((election) => {
       if (!election.enabled_constituencies || election.enabled_constituencies.length === 0) {
@@ -92,13 +79,15 @@ router.get("/", userAuth, async (req, res) => {
       return false;
     });
 
-    // 5. Fetch SQL vote records
-    const voterHash = "0x" + user.uid_hash;
+    // 5. ✅ FIXED: Fetch SQL vote records from 'voter_logs' using 'username'
+    // Previous code queried 'votes' table which does not exist/is not used by vote.js
     const voteRecords = await client.query(
-      `SELECT election_id FROM votes WHERE voter_hash = $1`,
-      [voterHash]
+      `SELECT election_id FROM voter_logs WHERE username = $1`,
+      [user.username]
     );
-    const votedElectionIds = new Set(voteRecords.rows.map((v) => v.election_id));
+    
+    // Create a Set of IDs for O(1) lookup. Ensure IDs are Numbers to match election.id
+    const votedElectionIds = new Set(voteRecords.rows.map((v) => Number(v.election_id)));
 
     // 6. Build final response
     let calcStats = { active: 0, participated: 0, upcoming: 0 };
@@ -121,13 +110,17 @@ router.get("/", userAuth, async (req, res) => {
 
       let hasVoted = false;
 
-      // 🟢 ONLY check blockchain for LIVE elections
-      if (status === "Live") {
+      // 🟢 Logic: 
+      // 1. If we find it in the DB (voter_logs), they definitely voted.
+      // 2. If not in DB AND it's Live, double-check Blockchain (in case DB write failed).
+      if (votedElectionIds.has(Number(election.id))) {
+         hasVoted = true;
+      } else if (status === "Live") {
         try {
           hasVoted = await retryBlockchainCall(() =>
             contract.hasVoted(
               BigInt(election.id),
-              "0x" + user.uid_hash  // voter UID hash used as identifier
+              "0x" + user.uid_hash
             )
           );
         } catch (err) {
@@ -137,9 +130,6 @@ router.get("/", userAuth, async (req, res) => {
           );
           hasVoted = false;
         }
-      } else {
-        // Upcoming / Completed → use SQL vote table
-        hasVoted = votedElectionIds.has(election.id);
       }
 
       if (hasVoted) {

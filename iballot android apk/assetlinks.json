@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.run.asia_south1.iballot_frontend_voter_715732606815.twa",
+        "sha256_cert_fingerprints": ["3F:1F:29:00:7D:4C:FD:95:3A:31:CF:EE:61:CC:32:74:73:7D:3B:66:E1:B8:08:19:0D:35:E6:D5:3D:85:D5:64"]
+      }
+    }]
