@@ -129,12 +129,7 @@ router.post("/", async (req, res) => {
     );
     console.log(`[Vote Route] Vote logged in DB for user ${username}`);
 
-    // 8. Broadcast update
-    broadcast({
-      type: "VOTE_UPDATE",
-      electionId: parseInt(electionId),
-      candidateId: parseInt(candidateId)
-    });
+    
 
     res.status(200).json({
       success: true,
