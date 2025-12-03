@@ -454,7 +454,6 @@ const CandidatesPage = ({ adminToken, isActive }) => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Candidates CSV File</label>
-                    {/* ✅ FIXED: Broadened accept attribute for mobile support */}
                     <input 
                         type="file" 
                         name="candidatesCsvInput" 
@@ -467,7 +466,6 @@ const CandidatesPage = ({ adminToken, isActive }) => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Party Symbol Images (PNG, JPG)</label>
-                    {/* ✅ FIXED: Broadened accept attribute for images too */}
                     <input 
                         type="file" 
                         name="symbolsInput" 
@@ -488,6 +486,7 @@ const CandidatesPage = ({ adminToken, isActive }) => {
         </div>
     );
 };
+
 const ResultsPage = ({ adminToken, isActive }) => {
   const [elections, setElections] = useState([]);
   const [selectedElectionId, setSelectedElectionId] = useState("");
@@ -552,25 +551,46 @@ const ResultsPage = ({ adminToken, isActive }) => {
     }
   };
 
+  // ✅ FIXED: Robust WebSocket connection logic
   useEffect(() => {
     if (!isActive || !selectedElectionId) return;
 
-    // ✅ CORRECTED LOGIC: Properly determines WS URL for both Docker & Production
     let wsUrl;
     try {
-      const backendUrl = new URL(import.meta.env.VITE_API_URL || window.location.origin);
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const backendUrl = new URL(apiUrl || window.location.origin);
       
       let wsHost;
+      const isLocalDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      
       if (backendUrl.hostname === "backend") {
-          // Special handling for local Docker development
-          wsHost = window.location.hostname + ":5000";
+          // Case: Running in Docker Compose (VITE_API_URL=http://backend:5000)
+          if (isLocalDev) {
+              // Developer is on localhost, map internal 'backend' to localhost:5000
+              wsHost = "localhost:5000";
+          } else {
+              // Production/Cloud Run, but VITE_API_URL is leaked as 'backend'.
+              // Attempt to auto-correct by deriving the backend URL from the frontend URL.
+              const currentHost = window.location.hostname;
+              
+              if (currentHost.includes('frontend-admin')) {
+                  wsHost = currentHost.replace('frontend-admin', 'backend');
+              } else if (currentHost.includes('frontend')) {
+                  wsHost = currentHost.replace('frontend', 'backend');
+              } else {
+                 // Fallback: Use current host (will fail if not proxied, but better than :5000)
+                 wsHost = window.location.host;
+              }
+              console.warn(`Detected internal 'backend' config in production. Auto-corrected WS Host to: ${wsHost}`);
+          }
       } else {
-          // Production: Use the actual backend host from the env var
+          // Case: Production URL (e.g. https://api.myapp.com) or custom URL is correctly set
           wsHost = backendUrl.host;
       }
 
-      // Determine Protocol based on the Backend URL (secure vs insecure)
-      const wsProtocol = backendUrl.protocol === "https:" ? "wss:" : "ws:";
+      // Determine Protocol
+      // If we are on HTTPS, we MUST use WSS to avoid Mixed Content errors.
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       
       wsUrl = `${wsProtocol}//${wsHost}/ws`;
       
@@ -584,6 +604,7 @@ const ResultsPage = ({ adminToken, isActive }) => {
     let isMounted = true; 
 
     const connect = () => {
+      console.log("Attempting WebSocket connection to:", wsUrl);
       const socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
