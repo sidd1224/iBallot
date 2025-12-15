@@ -10,28 +10,22 @@ const { decrypt } = require("../../utils/aesUtils");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
 const blockchain = require("../../blockchain/contract");
 const contract = blockchain.contract;
-// 👇 1. Import your auth middleware
 const userAuth = require("../../middleware/userAuth"); 
 
 require("dotenv").config();
 
 const voteQueue = new Queue('vote-processing', {
     connection: {
-        host: process.env.REDIS_HOST || '127.0.0.1',
-        port: process.env.REDIS_PORT || 6379,
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT,
         password: process.env.REDIS_PASSWORD
     }
 });
 
-// 👇 2. Add 'userAuth' here to protect the route
 router.post("/", userAuth, async (req, res) => {
   let client;
   try {
-    // 👇 3. Remove 'username' from body. We only trust 'password' (for re-auth)
     const { password, electionId, candidateId } = req.body;
-    
-    // 👇 4. Get the trusted username from the Token instead
-    // (This ensures a user cannot vote on behalf of someone else)
     const username = req.user.username; 
 
     if (!username || !password || electionId === undefined || candidateId === undefined) {
@@ -40,31 +34,27 @@ router.post("/", userAuth, async (req, res) => {
 
     client = await pool.connect();
 
-    // ---------------------------------------------------------
-    // ✅ THIS IS WHERE YOU FETCH UIDHASH (Already Correct)
-    // ---------------------------------------------------------
+    // 1. Fetch User
     const userResult = await client.query(
       "SELECT id, username, uid_hash, password FROM users WHERE username = $1",
-      [username] // Now using the trusted username from token
+      [username] 
     );
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: "User not found." });
     }
-    
-    // The sensitive hash is retrieved securely here
     const user = userResult.rows[0]; 
 
-    // Verify the password provided in the body matches the user found via token
+    // 2. Verify Password
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
       return res.status(401).json({ error: "Invalid password confirmation." });
     }
 
-    // ... Rest of your logic remains exactly the same ...
+    // 3. Get ECI Data
     const eciResult = await client.query(
       "SELECT enc_private_key, ac_id, pc_id FROM eci_admin_data WHERE uid_hash = $1",
-      [user.uid_hash] // using the fetched hash
+      [user.uid_hash] 
     );
 
     if (eciResult.rows.length === 0) {
@@ -72,6 +62,7 @@ router.post("/", userAuth, async (req, res) => {
     }
     const eciData = eciResult.rows[0];
 
+    // 4. Determine Constituency
     const electionTypeResult = await client.query(
       "SELECT type FROM elections WHERE election_id = $1",
       [electionId]
@@ -93,6 +84,7 @@ router.post("/", userAuth, async (req, res) => {
         return res.status(400).json({ error: "User is not eligible for this type of election." });
     }
 
+    // 5. Decrypt Key & Sign
     const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
     let privateKey;
     try {
@@ -123,9 +115,17 @@ router.post("/", userAuth, async (req, res) => {
 
     const messageBytes = ethers.getBytes(messageHash);
     const signature = await voterWallet.signMessage(messageBytes);
-    
     privateKey = null; 
 
+    // ✅ STEP 6: Insert 'QUEUED' log into DB
+    await client.query(
+      `INSERT INTO voter_logs 
+       (election_id, constituency_id, username, vote_time, status)
+       VALUES ($1, $2, $3, NOW(), $4)`,
+      [electionId, constituencyId, username, 'QUEUED']
+    );
+
+    // ✅ STEP 7: Add to Redis Queue
     await voteQueue.add('cast-vote', {
         electionId,
         voterHash,
@@ -136,7 +136,7 @@ router.post("/", userAuth, async (req, res) => {
         username, 
         timestamp: Date.now()
     });
-
+    
     console.log(`[Vote Ingest] Vote queued for user: ${username}`);
 
     res.status(202).json({

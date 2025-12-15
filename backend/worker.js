@@ -9,52 +9,45 @@ require("dotenv").config();
 console.log("🚀 Vote Worker Started...");
 
 // Constants
-const BATCH_SIZE = 50; // Max votes per transaction
-const BATCH_INTERVAL_MS = 2000; // Wait 2s to fill batch
+const BATCH_SIZE = 50; 
+const BATCH_INTERVAL_MS = 2000; 
 let voteBuffer = [];
 let bufferTimer = null;
 
 const redisConnection = {
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: process.env.REDIS_PORT || 6379,
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
     password: process.env.REDIS_PASSWORD
 };
 
 // Initialize Worker
 const worker = new Worker('vote-processing', async (job) => {
-    // Add job to local buffer
     voteBuffer.push(job);
 
-    // If buffer full, flush immediately
     if (voteBuffer.length >= BATCH_SIZE) {
         await flushBuffer();
     } 
-    // If timer not running, start it
     else if (!bufferTimer) {
         bufferTimer = setTimeout(async () => {
             await flushBuffer();
         }, BATCH_INTERVAL_MS);
     }
-}, { connection: redisConnection, concurrency: 5 }); // Process 5 jobs at once from Redis to fill buffer fast
+}, { connection: redisConnection, concurrency: 5 }); 
 
 async function flushBuffer() {
     if (voteBuffer.length === 0) return;
     
-    // Clear timer
     if (bufferTimer) {
         clearTimeout(bufferTimer);
         bufferTimer = null;
     }
 
-    // Move votes from buffer to processing array
     const currentBatch = [...voteBuffer];
-    voteBuffer = []; // Clear main buffer so new votes can come in
+    voteBuffer = []; 
 
     console.log(`📦 Processing batch of ${currentBatch.length} votes...`);
 
-    // Prepare Arrays for Smart Contract
-    const electionId = currentBatch[0].data.electionId; // Assuming all votes in batch are for same election logic
-    // Note: In production, you might group by electionId if multiple elections run parallel.
+    const electionId = currentBatch[0].data.electionId; 
     
     const voterHashes = currentBatch.map(j => j.data.voterHash);
     const candidateIds = currentBatch.map(j => j.data.candidateId);
@@ -65,7 +58,6 @@ async function flushBuffer() {
     let client;
     try {
         // 1. Submit Batch to Blockchain
-        // Using the new 'castVoteBatch' function
         const tx = await contract.castVoteBatch(
             electionId,
             voterHashes,
@@ -76,31 +68,42 @@ async function flushBuffer() {
         );
 
         console.log(`🔗 Batch Tx Submitted: ${tx.hash}`);
-        await tx.wait(); // Wait for confirmation
+        await tx.wait(); 
         console.log(`✅ Batch Confirmed!`);
 
-        // 2. Log successful votes to DB
+        // 2. UPDATE existing logs to CONFIRMED
         client = await pool.connect();
         
-        // Construct bulk insert query
-        // We use a loop for simplicity, or pg-format for optimization
+        // Loop through the batch and update each user's status
         for (const job of currentBatch) {
             await client.query(
-                `INSERT INTO voter_logs (election_id, username, constituency_id, tx_hash, vote_time) 
-                 VALUES ($1, $2, $3, $4, NOW())`,
+                `UPDATE voter_logs 
+                 SET tx_hash = $1, status = 'CONFIRMED'
+                 WHERE username = $2 AND election_id = $3`,
                 [
-                    job.data.electionId,
-                    job.data.username,
-                    job.data.constituencyId,
-                    tx.hash // All share same TxHash
+                    tx.hash,             // $1
+                    job.data.username,   // $2
+                    job.data.electionId  // $3
                 ]
             );
         }
         
     } catch (err) {
         console.error("❌ Batch Transaction Failed:", err);
-        // In production: Retry specific failed jobs or log to 'failed_votes' table
-        // We don't throw error here to avoid crashing the worker loop
+        
+        // OPTIONAL: Mark them as FAILED in DB so you know what happened
+        try {
+            if (!client) client = await pool.connect();
+            for (const job of currentBatch) {
+                await client.query(
+                    `UPDATE voter_logs SET status = 'FAILED' 
+                     WHERE username = $1 AND election_id = $2`,
+                    [job.data.username, job.data.electionId]
+                );
+            }
+        } catch (dbErr) {
+            console.error("Failed to update status to FAILED:", dbErr);
+        }
     } finally {
         if (client) client.release();
     }
