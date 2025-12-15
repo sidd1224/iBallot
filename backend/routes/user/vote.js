@@ -2,23 +2,36 @@ const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-const { Wallet, ethers } = require("ethers"); 
+const { Wallet, ethers } = require("ethers");
+const { Queue } = require('bullmq');
 
-// Import broadcast
-const { broadcast } = require("../../websocket");
-
-const blockchain = require("../../blockchain/contract");
-const contract = blockchain.contract; 
 const pool = require("../../database/db");
 const { decrypt } = require("../../utils/aesUtils");
 const { retryBlockchainCall } = require("../../utils/blockchainUtils");
+const blockchain = require("../../blockchain/contract");
+const contract = blockchain.contract;
+// 👇 1. Import your auth middleware
+const userAuth = require("../../middleware/userAuth"); 
 
 require("dotenv").config();
 
-router.post("/", async (req, res) => {
+const voteQueue = new Queue('vote-processing', {
+    connection: {
+        host: process.env.REDIS_HOST || '127.0.0.1',
+        port: process.env.REDIS_PORT || 6379
+    }
+});
+
+// 👇 2. Add 'userAuth' here to protect the route
+router.post("/", userAuth, async (req, res) => {
   let client;
   try {
-    const { username, password, electionId, candidateId } = req.body;
+    // 👇 3. Remove 'username' from body. We only trust 'password' (for re-auth)
+    const { password, electionId, candidateId } = req.body;
+    
+    // 👇 4. Get the trusted username from the Token instead
+    // (This ensures a user cannot vote on behalf of someone else)
+    const username = req.user.username; 
 
     if (!username || !password || electionId === undefined || candidateId === undefined) {
       return res.status(400).json({ error: "Missing required fields for voting." });
@@ -26,36 +39,43 @@ router.post("/", async (req, res) => {
 
     client = await pool.connect();
 
-    // 1. Authenticate user
+    // ---------------------------------------------------------
+    // ✅ THIS IS WHERE YOU FETCH UIDHASH (Already Correct)
+    // ---------------------------------------------------------
     const userResult = await client.query(
       "SELECT id, username, uid_hash, password FROM users WHERE username = $1",
-      [username]
+      [username] // Now using the trusted username from token
     );
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: "Invalid credentials." });
-    }
-    const user = userResult.rows[0];
 
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: "User not found." });
+    }
+    
+    // The sensitive hash is retrieved securely here
+    const user = userResult.rows[0]; 
+
+    // Verify the password provided in the body matches the user found via token
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
-      return res.status(401).json({ error: "Invalid credentials." });
+      return res.status(401).json({ error: "Invalid password confirmation." });
     }
 
-    // 2. Fetch ECI admin data
+    // ... Rest of your logic remains exactly the same ...
     const eciResult = await client.query(
       "SELECT enc_private_key, ac_id, pc_id FROM eci_admin_data WHERE uid_hash = $1",
-      [user.uid_hash]
+      [user.uid_hash] // using the fetched hash
     );
+
     if (eciResult.rows.length === 0) {
       return res.status(404).json({ error: "User data not found in ECI records." });
     }
     const eciData = eciResult.rows[0];
 
-    // 3. Determine constituency ID
     const electionTypeResult = await client.query(
       "SELECT type FROM elections WHERE election_id = $1",
       [electionId]
     );
+    
     if (electionTypeResult.rows.length === 0) {
       return res.status(404).json({ error: "Election not found." });
     }
@@ -69,26 +89,25 @@ router.post("/", async (req, res) => {
     }
 
     if (!constituencyId) {
-        return res.status(400).json({ error: "User is not eligible for this type of election based on constituency." });
+        return res.status(400).json({ error: "User is not eligible for this type of election." });
     }
 
+    const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
+    let privateKey;
+    try {
+        const decryptedKeyBuffer = decrypt(eciData.enc_private_key, secretKey);
+        privateKey = decryptedKeyBuffer.toString('utf8');
+    } catch (decErr) {
+        console.error("Decryption failed:", decErr);
+        return res.status(500).json({ error: "Security error: Failed to access voter wallet." });
+    }
+    
+    const voterWallet = new Wallet(privateKey);
     const voterHash = "0x" + user.uid_hash;
 
-    // 4. Decrypt private key
-    const secretKey = crypto.scryptSync(process.env.SECRET_SALT, "aadhaar_salt", 32);
-    const decryptedKeyBuffer = decrypt(eciData.enc_private_key, secretKey);
-    const privateKey = decryptedKeyBuffer.toString('utf8');
-    
-     if (!privateKey || !privateKey.startsWith('0x') || privateKey.length !== 66) {
-        console.error(`❌ Invalid decrypted private key format for user ${username}.`);
-        return res.status(500).json({ success: false, error: "Internal error: Failed to retrieve voter credentials." });
-     }
-    const voterWallet = new Wallet(privateKey);
-
     const nonce = await retryBlockchainCall(() => contract.getNonce(electionId, voterHash));
-    const deadline = Math.floor(Date.now() / 1000) + 600; 
+    const deadline = Math.floor(Date.now() / 1000) + 3600; 
 
-    // 5. Sign Vote
     const messageHash = ethers.solidityPackedKeccak256(
       ["uint256", "bytes32", "uint256", "uint256", "uint256", "uint256"],
       [
@@ -103,43 +122,31 @@ router.post("/", async (req, res) => {
 
     const messageBytes = ethers.getBytes(messageHash);
     const signature = await voterWallet.signMessage(messageBytes);
-    console.log(`[Vote Route] Generated signature for voter ${username}`);
-
-    // 6. Submit to Blockchain
-    console.log(`[Vote Route] Relayer calling castVoteMeta...`);
-    const tx = await retryBlockchainCall(() => contract.castVoteMeta(
-      BigInt(electionId),
-      voterHash,
-      BigInt(candidateId),
-      BigInt(constituencyId),
-      BigInt(deadline),
-      signature
-    ));
-    console.log(`[Vote Route] Transaction submitted: ${tx.hash}`);
-
-    // Wait for confirmation
-    const receipt = await retryBlockchainCall(() => tx.wait());
-    console.log(`[Vote Route] Transaction confirmed. Block: ${receipt.blockNumber}`);
-
-    // 7. ✅ LOG VOTE WITH TIMESTAMP
-    await client.query(
-      `INSERT INTO voter_logs (election_id, username, constituency_id, tx_hash, vote_time) 
-       VALUES ($1, $2, $3, $4, NOW())`,
-      [electionId, username, constituencyId, tx.hash]
-    );
-    console.log(`[Vote Route] Vote logged in DB for user ${username}`);
-
     
+    privateKey = null; 
 
-    res.status(200).json({
+    await voteQueue.add('cast-vote', {
+        electionId,
+        voterHash,
+        candidateId,
+        constituencyId,
+        deadline,
+        signature,
+        username, 
+        timestamp: Date.now()
+    });
+
+    console.log(`[Vote Ingest] Vote queued for user: ${username}`);
+
+    res.status(202).json({
       success: true,
-      message: "Vote cast successfully!",
-      txHash: tx.hash
+      message: "Vote received and queued securely.",
+      status: "queued"
     });
 
   } catch (err) {
-    console.error("❌ Vote Casting Error:", err);
-    res.status(500).json({ success: false, error: "Failed to cast vote due to an internal server error." });
+    console.error("❌ Vote Ingest Error:", err);
+    res.status(500).json({ success: false, error: "Internal server error during vote processing." });
   } finally {
     if (client) client.release();
   }

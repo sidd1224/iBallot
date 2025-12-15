@@ -1,5 +1,4 @@
-// frontend-voter/src/pages/user/CandidateList.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { 
@@ -11,6 +10,7 @@ import {
   AlertCircle,
   Vote
 } from "lucide-react";
+import VoteSuccessModal from "../../components/VoteSuccessModal";
 
 const CandidateList = () => {
   const { electionId, assemblyId } = useParams();
@@ -24,8 +24,22 @@ const CandidateList = () => {
   const [password, setPassword] = useState("");
   const [voteError, setVoteError] = useState("");
 
-  const user = JSON.parse(sessionStorage.getItem("user"));
-  const token = sessionStorage.getItem("token");
+  // Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [txHash, setTxHash] = useState(null);
+
+  // ✅ 1. Memoize user to prevent infinite re-renders
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user"));
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  const token = useMemo(() => sessionStorage.getItem("token"), []);
+  
+  const ws = useRef(null);
 
   useEffect(() => {
     if (!user || !token) {
@@ -33,9 +47,104 @@ const CandidateList = () => {
     }
   }, [navigate, user, token]);
 
+  // ✅ 2. Robust WebSocket Connection Logic
+  useEffect(() => {
+    let wsUrl;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const backendUrl = new URL(apiUrl || window.location.origin);
+      
+      let wsHost;
+      const isLocalDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      
+      if (backendUrl.hostname === "backend") {
+          if (isLocalDev) {
+              wsHost = "localhost:5000"; 
+          } else {
+              // Auto-fix for Docker/Cloud environments
+              const currentHost = window.location.hostname;
+              if (currentHost.includes('frontend')) {
+                  wsHost = currentHost.replace('frontend-voter', 'backend').replace('frontend', 'backend');
+              } else {
+                  wsHost = window.location.host;
+              }
+          }
+      } else {
+          wsHost = backendUrl.host;
+      }
+
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${wsProtocol}//${wsHost}/ws`;
+    } catch (err) {
+      console.error("WS Config Error:", err);
+      wsUrl = `ws://${window.location.host}/ws`;
+    }
+
+    // Prevent duplicate connections
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
+
+    console.log("🔌 Connecting to WebSocket:", wsUrl);
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      console.log("✅ WebSocket Connected");
+    };
+
+    // ✅ 3. DEBUG & CONFIRMATION LOGIC
+    ws.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "VOTE_CONFIRMED") {
+          console.log("📩 Received Blockchain Confirmation:", data.payload);
+
+          // --- ROBUST COMPARISON ---
+          // 1. Get Local Hash (Handle potentially missing user)
+          const myRawHash = user?.uid_hash || "";
+          
+          // 2. Get Incoming Hash
+          const incomingRawHash = data.payload.voterHash || "";
+
+          // 3. Normalize: Lowercase + Remove '0x' prefix from both sides
+          const myHash = myRawHash.toLowerCase().replace(/^0x/, "");
+          const incHash = incomingRawHash.toLowerCase().replace(/^0x/, "");
+
+          console.log(`🔍 DEBUG MATCH:`);
+          console.log(`   👉 My Session Hash:   ${myHash}`);
+          console.log(`   👉 Blockchain Hash:   ${incHash}`);
+
+          // 4. Compare
+          if (myHash && myHash === incHash) {
+             console.log("✅ MATCH! Opening Modal.");
+             
+             setIsVoting(false); // Stop Spinner
+             setTxHash(data.payload.txHash);
+             setShowSuccessModal(true);
+          } else {
+             console.warn("⚠️ MISMATCH! Ignoring confirmation.");
+             if (!myHash) console.warn("💡 TIP: Your session hash is empty. Try Logging out and back in.");
+          }
+        }
+      } catch (err) {
+        console.error("WS Message Error:", err);
+      }
+    };
+
+    ws.current.onclose = () => {
+        console.log("⚠️ WebSocket Disconnected");
+    };
+
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
+    };
+  }, [user]); // Runs when 'user' is memoized (mount)
+
+  // Fetch Candidates
   useEffect(() => {
     let isMounted = true;
-
     const fetchCandidates = async () => {
       try {
         if (!token || !user?.username || !electionId || !assemblyId) {
@@ -43,23 +152,19 @@ const CandidateList = () => {
           setLoading(false);
           return;
         }
-
         const res = await axios.get(`/api/candidates/${electionId}/${assemblyId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (isMounted) {
           let formatted = (res.data.candidates || []).map((c) => ({
             ...c,
             symbol: c.symbol ? `/symbols/${c.symbol.split("/").pop()}` : null,
           }));
-
           formatted.sort((a, b) => {
             if (a.party_name === 'NOTA') return 1;
             if (b.party_name === 'NOTA') return -1;
             return 0;
           });
-
           setCandidates(formatted);
         }
       } catch (err) {
@@ -73,11 +178,11 @@ const CandidateList = () => {
         if (isMounted) setLoading(false);
       }
     };
-
     fetchCandidates();
     return () => { isMounted = false; };
   }, [electionId, assemblyId, token, user, navigate]);
 
+  // Handle Vote
   const handleVoteSubmit = async (e) => {
     e.preventDefault();
     if (selectedCandidate === null) {
@@ -93,7 +198,7 @@ const CandidateList = () => {
     setIsVoting(true);
 
     try {
-      const response = await axios.post(
+      await axios.post(
         `/api/vote`,
         {
           username: user?.username,
@@ -104,19 +209,23 @@ const CandidateList = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      alert(`✅ Vote cast successfully!\nTx Hash: ${response.data.txHash}`);
-      sessionStorage.clear();
-      navigate("/login");
+      console.log("Vote Queued. Waiting for Blockchain confirmation...");
+
     } catch (err) {
       console.error("❌ Vote error:", err);
+      setIsVoting(false);
       if (err.response?.status === 401) {
         sessionStorage.clear();
         navigate("/login");
       }
       setVoteError(err.response?.data?.error || "Vote transaction failed.");
-    } finally {
-      setIsVoting(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    sessionStorage.clear();
+    navigate("/login");
   };
 
   if (loading) {
@@ -277,6 +386,12 @@ const CandidateList = () => {
           </form>
         </div>
       </div>
+
+      <VoteSuccessModal 
+        isOpen={showSuccessModal} 
+        onClose={handleCloseModal} 
+        txHash={txHash}
+      />
     </div>
   );
 };

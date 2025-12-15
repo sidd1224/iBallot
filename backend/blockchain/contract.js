@@ -6,7 +6,7 @@ const abi = VotingContract.abi;
 
 const RPC_URL = process.env.RPC_URL;
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY; // ✅ using relayer key
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY; 
 
 let contract;
 let provider;
@@ -25,19 +25,17 @@ try {
   contract = new Contract(address, abi, wallet);
   console.log("✅ Contract loaded at:", address);
 
-  // --- diagnostic ---
   if (typeof contract.candidateCounter === "function") {
     console.log("✅ candidateCounter() is available in ABI");
   } else {
     console.error("❌ candidateCounter() not found in ABI!");
-    console.log("Functions detected:", Object.keys(contract.interface.functions));
   }
 } catch (err) {
   console.error("❌ Failed to init contract:", err.message);
   process.exit(1);
 }
 
-// ✅ Wrapped read calls so you can import directly without struct getter confusion
+// ✅ Wrapped read calls
 async function getCandidateStruct(electionId, constituencyId, candidateId) {
   const eID = Number(electionId);
   const cID = Number(constituencyId);
@@ -48,7 +46,6 @@ async function getCandidateStruct(electionId, constituencyId, candidateId) {
   );
 }
 
-// ✅ Read total votes for an election
 async function getElectionTotalVotes(electionId) {
   const eID = Number(electionId);
   return retryBlockchainCall(() =>
@@ -56,7 +53,6 @@ async function getElectionTotalVotes(electionId) {
   );
 }
 
-// ✅ Read vote count for a specific candidate
 async function getCandidateVoteCount(electionId, constituencyId, candidateId) {
   const eID = Number(electionId);
   const cID = Number(constituencyId);
@@ -67,14 +63,19 @@ async function getCandidateVoteCount(electionId, constituencyId, candidateId) {
   );
 }
 
-// ✅ WebSocket vote listener (already fine)
+// ✅ WebSocket vote listener
 function startVoteListener(broadcastFn) {
   broadcastRef = broadcastFn;
 
+  // 👇 EVERYTHING MUST BE INSIDE THIS CALLBACK 👇
   contract.on("VoteCast", (electionId, voterHash, candidateId, event) => {
     console.log(`🗳 VoteCast detected → Election ${electionId}, Candidate ${candidateId}`);
 
+    // ✅ EXTRACT TX HASH safely inside the event
+    const txHash = event?.log?.transactionHash || event?.transactionHash;
+
     if (broadcastRef) {
+      // 1. Send generic update for Admin Dashboard (Charts)
       broadcastRef({
         type: "VOTE_UPDATE",
         payload: {
@@ -83,14 +84,31 @@ function startVoteListener(broadcastFn) {
           timestamp: Date.now(),
         },
       });
-      console.log(`📡 Broadcasted VOTE_UPDATE for Election ${electionId}`);
+
+      // 2. Send specific confirmation for Voter (Receipt)
+      broadcastRef({
+        type: "VOTE_CONFIRMED", 
+        payload: {
+          electionId: Number(electionId),
+          candidateId: Number(candidateId),
+          voterHash: voterHash, 
+          txHash: txHash,       
+          timestamp: Date.now(),
+        },
+      });
+      
+      console.log(`📡 Broadcasted CONFIRMATION for Voter ${voterHash}`);
     }
   });
+  // 👆 CALLBACK ENDS HERE 👆
 
   console.log("👂 Listening for VoteCast events...");
 }
 
-// Exporting helpers ✅ so other files can import directly
+// Helper for retries (assumed to be imported or defined if used above, 
+// otherwise ensure retryBlockchainCall is imported from utils if needed)
+const { retryBlockchainCall } = require("../utils/blockchainUtils");
+
 module.exports = {
   contract,
   provider,
@@ -98,7 +116,4 @@ module.exports = {
   getCandidateStruct,
   getElectionTotalVotes,
   getCandidateVoteCount,
-  getCandidateVoteCount,
-  getElectionTotalVotes,
-  
 };

@@ -30,9 +30,14 @@ const Login = () => {
         'user',
         JSON.stringify({
           username: response.data.user.username,
-          hasVoted: response.data.hasVoted
+          hasVoted: response.data.hasVoted,
+          uid_hash: response.data.uidHash // ✅ ADDED THIS LINE
         })
       );
+
+      // (Optional) You can also store it separately if needed elsewhere
+      sessionStorage.setItem('uid_hash', response.data.uidHash);
+
       sessionStorage.setItem('voterHash', response.data.voterHash);
       sessionStorage.setItem('walletAddress', response.data.walletAddress);
       sessionStorage.setItem('constituency', JSON.stringify(response.data.constituency));
