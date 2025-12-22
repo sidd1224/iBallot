@@ -305,14 +305,13 @@ const Register = ({ onViewChange }) => {
                 }}
                 className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center justify-center w-full"
               >
-                <ArrowLeft className="h-4 w-4 mr-1" />
+                <ArrowLeft className=\"h-4 w-4 mr-1\" />
                 Back to Login
               </button>
             </div>
           </div>
 
-          {/* Bottom Badges */}
-          <div className="mt-8 text-center space-x-4">
+          {/* Bottom Badges */}\n          <div className="mt-8 text-center space-x-4">
             <span className="inline-flex items-center text-xs text-gray-500">
               <Lock className="h-3 w-3 mr-1" /> SSL Secured
             </span>
