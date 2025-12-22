@@ -31,14 +31,14 @@ const Register = ({ onViewChange }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 🔹 UI-only states (no behavior change)
+  // 🔹 Preserved UI states for validation & toggles
   const [touched, setTouched] = useState({ username: false, password: false });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
-  // 🔹 Validation rules (UI only)
+  // 🔹 Validation rules
   const usernameRules = [
     { label: 'At least 3 characters', isValid: v => v.length >= 3 },
     { label: 'Alphanumeric only', isValid: v => /^[a-zA-Z0-9]+$/.test(v) }
@@ -74,7 +74,8 @@ const Register = ({ onViewChange }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`/api/register`, {
+      // Using the logic from your uploaded file
+      await axios.post(`/api/register`, {
         username,
         password,
         phoneNumber,
@@ -98,10 +99,10 @@ const Register = ({ onViewChange }) => {
 
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
 
-        {/* Header */}
+        {/* Header / Logo */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <div
-            className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg"
+            className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg transform hover:scale-105 transition-transform"
             onClick={() => onViewChange?.('landing')}
           >
             <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
@@ -114,26 +115,28 @@ const Register = ({ onViewChange }) => {
           </p>
         </div>
 
-        {/* Card */}
+        {/* Card Container */}
         <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-100">
+          <div className="bg-white py-8 px-4 shadow-xl shadow-indigo-100/50 rounded-2xl sm:px-10 border border-gray-100">
 
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
-                <AlertCircle className="h-5 w-5 mr-2" />
+                <AlertCircle className="h-5 w-5 mr-2 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             <form className="space-y-6" onSubmit={handleRegister}>
 
-              {/* Username */}
+              {/* Username Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Username
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <User className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
                   <input
                     type="text"
                     required
@@ -149,6 +152,7 @@ const Register = ({ onViewChange }) => {
                   />
                 </div>
 
+                {/* Username Validation Checklist */}
                 {touched.username && (
                   <div className="mt-2 space-y-1 text-xs">
                     {usernameRules.map((r, i) => (
@@ -165,13 +169,15 @@ const Register = ({ onViewChange }) => {
                 )}
               </div>
 
-              {/* Password */}
+              {/* Password Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Create Password
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <Lock className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
@@ -188,12 +194,13 @@ const Register = ({ onViewChange }) => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(v => !v)}
-                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
 
+                {/* Password Validation Checklist */}
                 {touched.password && (
                   <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
                     {passwordRules.map((r, i) => (
@@ -210,13 +217,15 @@ const Register = ({ onViewChange }) => {
                 )}
               </div>
 
-              {/* Confirm Password */}
+              {/* Confirm Password Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Confirm Password
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <Lock className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
@@ -225,7 +234,7 @@ const Register = ({ onViewChange }) => {
                     disabled={loading}
                     className={`focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 pr-10 text-base sm:text-sm rounded-lg p-3 border ${
                       confirmPassword && confirmPassword !== password
-                        ? 'border-red-300'
+                        ? 'border-red-300 focus:ring-red-500'
                         : 'border-gray-300'
                     }`}
                     placeholder="••••••••"
@@ -233,7 +242,7 @@ const Register = ({ onViewChange }) => {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(v => !v)}
-                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
                   >
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -246,32 +255,34 @@ const Register = ({ onViewChange }) => {
                 )}
               </div>
 
-              {/* DigiLocker */}
+              {/* DigiLocker Verification UI */}
               <div className="pt-2">
                 {!isVerified ? (
                   <Link
                     to="/verify/digilocker"
-                    className="w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl text-blue-700 bg-blue-50"
+                    className={`w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl shadow-sm text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
+                      loading ? 'opacity-75 cursor-not-allowed' : ''
+                    }`}
                   >
                     <ExternalLink className="w-5 h-5 mr-2" />
                     Verify via DigiLocker
                   </Link>
                 ) : (
-                  <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl text-green-700 bg-green-50">
+                  <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl shadow-sm text-sm font-semibold text-green-700 bg-green-50 cursor-default animate-in fade-in zoom-in duration-300">
                     <CheckCircle className="w-5 h-5 mr-2" />
                     Identity Verified
                   </div>
                 )}
               </div>
 
-              {/* Register */}
+              {/* Register Submit */}
               <button
                 type="submit"
                 disabled={loading || !isVerified}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white ${
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white transition-all ${
                   loading || !isVerified
                     ? 'bg-indigo-400 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
                 }`}
               >
                 {loading ? 'Creating Account...' : 'Register'}
@@ -290,6 +301,17 @@ const Register = ({ onViewChange }) => {
             </div>
 
           </div>
+
+          {/* Bottom Badges */}
+          <div className="mt-8 text-center space-x-4">
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <Lock className="h-3 w-3 mr-1" /> SSL Secured
+            </span>
+            <span className="inline-flex items-center text-xs text-gray-500">
+              <CheckCircle className="h-3 w-3 mr-1" /> Blockchain Verified
+            </span>
+          </div>
+
         </div>
       </div>
     </>
