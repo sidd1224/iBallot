@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { Shield, Lock, AlertCircle, CheckCircle, User, ExternalLink, ArrowLeft, Check, X } from 'lucide-react';
+import {
+  Shield,
+  Lock,
+  AlertCircle,
+  CheckCircle,
+  User,
+  ExternalLink,
+  ArrowLeft,
+  Check,
+  X,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -18,35 +30,28 @@ const Register = ({ onViewChange }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Track if fields have been touched to avoid showing errors before typing
+
+  // UI-only states
   const [touched, setTouched] = useState({ username: false, password: false });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
-  // --- VALIDATION RULES ---
+  // Username rules
   const usernameRules = [
-    { 
-      label: "At least 3 characters", 
-      isValid: (val) => val.length >= 3 
-    },
-    { 
-      label: "Alphanumeric only (Letters & Numbers)", 
-      isValid: (val) => /^[a-zA-Z0-9]+$/.test(val) 
-    }
+    { label: 'At least 3 characters', isValid: v => v.length >= 3 },
+    { label: 'Alphanumeric only', isValid: v => /^[a-zA-Z0-9]+$/.test(v) }
   ];
 
+  // Password rules
   const passwordRules = [
-    { label: "At least 8 characters", isValid: (val) => val.length >= 8 },
-    { label: "One Uppercase Letter (A-Z)", isValid: (val) => /[A-Z]/.test(val) },
-    { label: "One Lowercase Letter (a-z)", isValid: (val) => /[a-z]/.test(val) },
-    { label: "One Number (0-9)", isValid: (val) => /[0-9]/.test(val) },
-    { label: "One Special Character (!@#$)", isValid: (val) => /[^A-Za-z0-9]/.test(val) },
+    { label: 'At least 8 characters', isValid: v => v.length >= 8 },
+    { label: 'One uppercase letter', isValid: v => /[A-Z]/.test(v) },
+    { label: 'One lowercase letter', isValid: v => /[a-z]/.test(v) },
+    { label: 'One number', isValid: v => /[0-9]/.test(v) },
+    { label: 'One special character', isValid: v => /[^A-Za-z0-9]/.test(v) },
   ];
-
-  // Helper to check if all rules pass
-  const isUsernameValid = usernameRules.every(rule => rule.isValid(username));
-  const isPasswordValid = passwordRules.every(rule => rule.isValid(password));
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -56,51 +61,33 @@ const Register = ({ onViewChange }) => {
       setError('Please verify your identity via Digilocker first.');
       return;
     }
-    
-    // Strict Validation Check on Submit
-    if (!isUsernameValid) {
-      setError("Please fix username errors.");
-      return;
-    }
-    if (!isPasswordValid) {
-      setError("Please fix password errors.");
-      return;
-    }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError('Passwords do not match.');
       return;
     }
 
     if (!username || !password || !phoneNumber || !verificationData) {
-      setError("Missing verification data. Please try the verification process again.");
+      setError('Missing verification data. Please try again.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const registrationData = {
+      await axios.post('/api/register', {
         username,
         password,
         phoneNumber,
         digilockerData: verificationData
-      };
+      });
 
-      const response = await axios.post(`/api/register`, registrationData);
-      
-      console.log("Registration Success:", response.data);
-      toast.success("Registration successful! Redirecting to login...");
-      
-      setTimeout(() => {
-        if (onViewChange) onViewChange('login');
-        else navigate('/login');
-      }, 2000);
-
+      toast.success('Registration successful! Redirecting...');
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      console.error("Registration Error:", err);
-      setError(err.response?.data?.error || "Registration failed. Please try again.");
-      toast.error(err.response?.data?.error || "Registration failed");
+      const msg = err.response?.data?.error || 'Registration failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -109,215 +96,186 @@ const Register = ({ onViewChange }) => {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-        <div className="max-w-md w-full">
-          {/* Header Section */}
-          <div className="text-center mb-8">
-            <div className="mx-auto h-16 w-16 bg-white rounded-2xl shadow-lg flex items-center justify-center mb-4">
-              <Shield className="h-10 w-10 text-indigo-600" />
-            </div>
-            <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              Create Secure Account
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Verified & protected by <span className="font-semibold text-indigo-600">iBallot Blockchain</span>
-            </p>
-          </div>
 
-          <div className="bg-white py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-gray-100">
-            {/* Identity Verification Badge */}
-            <div className={`mb-6 p-4 rounded-xl border ${isVerified ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-              <div className="flex items-center">
-                {isVerified ? (
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-amber-500 mr-3" />
-                )}
-                <div>
-                  <h3 className={`text-sm font-medium ${isVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                    {isVerified ? 'Identity Verified Successfully' : 'Identity Verification Pending'}
-                  </h3>
-                  <div className={`text-xs mt-1 ${isVerified ? 'text-green-600' : 'text-amber-600'}`}>
-                    {isVerified 
-                      ? `Verified via Digilocker (${verificationData?.name || 'User'})`
-                      : 'Please verify your Aadhaar to continue registration.'}
-                  </div>
-                </div>
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 px-4">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div
+            className="mx-auto h-12 w-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg cursor-pointer"
+            onClick={() => onViewChange?.('landing')}
+          >
+            <Shield className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="mt-4 text-2xl font-extrabold text-gray-900">
+            Create Account
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Join the secure voting platform
+          </p>
+        </div>
+
+        <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl">
+
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                {error}
               </div>
-            </div>
+            )}
 
             <form className="space-y-6" onSubmit={handleRegister}>
-              {error && (
-                <div className="rounded-lg bg-red-50 p-4 border border-red-200 animate-pulse">
-                  <div className="flex">
-                    <AlertCircle className="h-5 w-5 text-red-400" />
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">
-                        Registration Failed
-                      </h3>
-                      <div className="mt-2 text-sm text-red-700">
-                        <p>{error}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Username Field */}
+              {/* Username */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Username
                 </label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400" />
-                  </div>
+                <div className="relative mt-1">
+                  <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                   <input
-                    type="text"
-                    required
                     value={username}
-                    onChange={(e) => {
+                    onChange={e => {
                       setUsername(e.target.value);
-                      setTouched(prev => ({ ...prev, username: true }));
+                      setTouched(t => ({ ...t, username: true }));
                     }}
-                    onBlur={() => setTouched(prev => ({ ...prev, username: true }))}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all"
-                    placeholder="Choose a username"
+                    onBlur={() => setTouched(t => ({ ...t, username: true }))}
+                    className="pl-10 p-3 w-full border rounded-lg"
+                    placeholder="Enter username"
                   />
                 </div>
-                
-                {/* Username Validation Checklist */}
+
                 {touched.username && (
-                  <div className="mt-2 space-y-1">
-                    {usernameRules.map((rule, index) => {
-                      const met = rule.isValid(username);
-                      return (
-                        <div key={index} className="flex items-center text-xs">
-                          {met ? (
-                            <Check className="h-3 w-3 text-green-500 mr-1.5" />
-                          ) : (
-                            <div className="h-1.5 w-1.5 rounded-full bg-gray-300 mr-2 ml-1" />
-                          )}
-                          <span className={met ? 'text-green-600 font-medium' : 'text-gray-500'}>
-                            {rule.label}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="mt-2 space-y-1 text-xs">
+                    {usernameRules.map((r, i) => (
+                      <div key={i} className="flex items-center">
+                        {r.isValid(username)
+                          ? <Check className="h-3 w-3 text-green-500 mr-1" />
+                          : <div className="h-2 w-2 bg-gray-300 rounded-full mr-2" />}
+                        <span className={r.isValid(username) ? 'text-green-600' : 'text-gray-500'}>
+                          {r.label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* Password Field */}
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
+                <div className="relative mt-1">
+                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                   <input
-                    type="password"
-                    required
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => {
+                    onChange={e => {
                       setPassword(e.target.value);
-                      setTouched(prev => ({ ...prev, password: true }));
+                      setTouched(t => ({ ...t, password: true }));
                     }}
-                    onBlur={() => setTouched(prev => ({ ...prev, password: true }))}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all"
-                    placeholder="Create a strong password"
+                    onBlur={() => setTouched(t => ({ ...t, password: true }))}
+                    className="pl-10 pr-10 p-3 w-full border rounded-lg"
+                    placeholder="Create password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
 
-                {/* Password Validation Checklist */}
                 {touched.password && (
-                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                    {passwordRules.map((rule, index) => {
-                      const met = rule.isValid(password);
-                      return (
-                        <div key={index} className="flex items-center text-xs">
-                          {met ? (
-                            <Check className="h-3 w-3 text-green-500 mr-1.5" />
-                          ) : (
-                            <div className="h-1.5 w-1.5 rounded-full bg-gray-300 mr-2 ml-1" />
-                          )}
-                          <span className={met ? 'text-green-600 font-medium' : 'text-gray-500'}>
-                            {rule.label}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
+                    {passwordRules.map((r, i) => (
+                      <div key={i} className="flex items-center">
+                        {r.isValid(password)
+                          ? <Check className="h-3 w-3 text-green-500 mr-1" />
+                          : <div className="h-2 w-2 bg-gray-300 rounded-full mr-2" />}
+                        <span className={r.isValid(password) ? 'text-green-600' : 'text-gray-500'}>
+                          {r.label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* Confirm Password Field */}
+              {/* Confirm Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Confirm Password
                 </label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
+                <div className="relative mt-1">
+                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                   <input
-                    type="password"
-                    required
+                    type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`block w-full pl-10 pr-3 py-3 border rounded-xl focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all ${
-                      confirmPassword && confirmPassword !== password 
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-300'
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    className={`pl-10 pr-10 p-3 w-full border rounded-lg ${
+                      confirmPassword && confirmPassword !== password ? 'border-red-400' : ''
                     }`}
-                    placeholder="Confirm your password"
+                    placeholder="Confirm password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
+
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="mt-1 text-xs text-red-500 flex items-center">
+                  <p className="text-xs text-red-500 mt-1 flex items-center">
                     <X className="h-3 w-3 mr-1" /> Passwords do not match
                   </p>
                 )}
               </div>
 
-              {/* Submit Button */}
+              {/* DigiLocker */}
+              {!isVerified ? (
+                <Link
+                  to="/verify/digilocker"
+                  className="w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl text-blue-700 bg-blue-50"
+                >
+                  <ExternalLink className="w-5 h-5 mr-2" />
+                  Verify via DigiLocker
+                </Link>
+              ) : (
+                <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl text-green-700 bg-green-50">
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Identity Verified
+                </div>
+              )}
+
+              {/* Register */}
               <button
                 type="submit"
-                disabled={loading || !isVerified || !isUsernameValid || !isPasswordValid}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white transition-all ${
-                  loading || !isVerified || !isUsernameValid || !isPasswordValid
+                disabled={loading || !isVerified}
+                className={`w-full py-3 rounded-xl text-white ${
+                  loading || !isVerified
                     ? 'bg-indigo-400 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
                 }`}
               >
                 {loading ? 'Creating Account...' : 'Register'}
               </button>
             </form>
 
-            {/* Back to Login */}
+            {/* Back to login */}
             <div className="mt-6 text-center">
               <button
-                onClick={() => {
-                  if (onViewChange) onViewChange('login');
-                  else navigate('/login');
-                }}
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center justify-center w-full"
+                onClick={() => navigate('/login')}
+                className="text-sm text-indigo-600 flex items-center justify-center w-full"
               >
-                <ArrowLeft className=\"h-4 w-4 mr-1\" />
+                <ArrowLeft className="h-4 w-4 mr-1" />
                 Back to Login
               </button>
             </div>
-          </div>
 
-          {/* Bottom Badges */}\n          <div className="mt-8 text-center space-x-4">
-            <span className="inline-flex items-center text-xs text-gray-500">
-              <Lock className="h-3 w-3 mr-1" /> SSL Secured
-            </span>
-            <span className="inline-flex items-center text-xs text-gray-500">
-              <CheckCircle className="h-3 w-3 mr-1" /> Blockchain Verified
-            </span>
           </div>
         </div>
       </div>
