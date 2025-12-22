@@ -31,20 +31,19 @@ const Register = ({ onViewChange }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // UI-only states
+  // 🔹 UI-only states (no behavior change)
   const [touched, setTouched] = useState({ username: false, password: false });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
-  // Username rules
+  // 🔹 Validation rules (UI only)
   const usernameRules = [
     { label: 'At least 3 characters', isValid: v => v.length >= 3 },
     { label: 'Alphanumeric only', isValid: v => /^[a-zA-Z0-9]+$/.test(v) }
   ];
 
-  // Password rules
   const passwordRules = [
     { label: 'At least 8 characters', isValid: v => v.length >= 8 },
     { label: 'One uppercase letter', isValid: v => /[A-Z]/.test(v) },
@@ -63,29 +62,29 @@ const Register = ({ onViewChange }) => {
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError("Passwords do not match.");
       return;
     }
 
     if (!username || !password || !phoneNumber || !verificationData) {
-      setError('Missing verification data. Please try again.');
+      setError("Missing verification data. Please try again.");
       return;
     }
 
     setLoading(true);
 
     try {
-      await axios.post('/api/register', {
+      const response = await axios.post(`/api/register`, {
         username,
         password,
         phoneNumber,
         digilockerData: verificationData
       });
 
-      toast.success('Registration successful! Redirecting...');
+      toast.success("Registration successful! Redirecting to login...");
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      const msg = err.response?.data?.error || 'Registration failed';
+      const msg = err.response?.data?.error || "Registration failed.";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -97,15 +96,17 @@ const Register = ({ onViewChange }) => {
     <>
       <ToastContainer position="top-right" autoClose={3000} />
 
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 px-4">
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+
+        {/* Header */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <div
-            className="mx-auto h-12 w-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg cursor-pointer"
+            className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-indigo-600 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg"
             onClick={() => onViewChange?.('landing')}
           >
-            <Shield className="h-8 w-8 text-white" />
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
           </div>
-          <h2 className="mt-4 text-2xl font-extrabold text-gray-900">
+          <h2 className="mt-4 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900">
             Create Account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -113,13 +114,14 @@ const Register = ({ onViewChange }) => {
           </p>
         </div>
 
-        <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl">
+        {/* Card */}
+        <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white py-8 px-4 shadow-xl rounded-2xl sm:px-10 border border-gray-100">
 
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center">
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center text-sm">
                 <AlertCircle className="h-5 w-5 mr-2" />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
@@ -130,17 +132,20 @@ const Register = ({ onViewChange }) => {
                 <label className="block text-sm font-medium text-gray-700">
                   Username
                 </label>
-                <div className="relative mt-1">
-                  <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <User className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
                   <input
+                    type="text"
+                    required
                     value={username}
                     onChange={e => {
                       setUsername(e.target.value);
                       setTouched(t => ({ ...t, username: true }));
                     }}
                     onBlur={() => setTouched(t => ({ ...t, username: true }))}
-                    className="pl-10 p-3 w-full border rounded-lg"
-                    placeholder="Enter username"
+                    disabled={loading || isVerified}
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border"
+                    placeholder="Enter Username"
                   />
                 </div>
 
@@ -163,20 +168,22 @@ const Register = ({ onViewChange }) => {
               {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Password
+                  Create Password
                 </label>
-                <div className="relative mt-1">
-                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <Lock className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    required
                     value={password}
                     onChange={e => {
                       setPassword(e.target.value);
                       setTouched(t => ({ ...t, password: true }));
                     }}
                     onBlur={() => setTouched(t => ({ ...t, password: true }))}
-                    className="pl-10 pr-10 p-3 w-full border rounded-lg"
-                    placeholder="Create password"
+                    disabled={loading}
+                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 pr-10 text-base sm:text-sm border-gray-300 rounded-lg p-3 border"
+                    placeholder="••••••••"
                   />
                   <button
                     type="button"
@@ -208,16 +215,20 @@ const Register = ({ onViewChange }) => {
                 <label className="block text-sm font-medium text-gray-700">
                   Confirm Password
                 </label>
-                <div className="relative mt-1">
-                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <Lock className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400 my-auto" />
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
+                    required
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
-                    className={`pl-10 pr-10 p-3 w-full border rounded-lg ${
-                      confirmPassword && confirmPassword !== password ? 'border-red-400' : ''
+                    disabled={loading}
+                    className={`focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 pr-10 text-base sm:text-sm rounded-lg p-3 border ${
+                      confirmPassword && confirmPassword !== password
+                        ? 'border-red-300'
+                        : 'border-gray-300'
                     }`}
-                    placeholder="Confirm password"
+                    placeholder="••••••••"
                   />
                   <button
                     type="button"
@@ -229,33 +240,35 @@ const Register = ({ onViewChange }) => {
                 </div>
 
                 {confirmPassword && confirmPassword !== password && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center">
+                  <p className="mt-1 text-xs text-red-500 flex items-center">
                     <X className="h-3 w-3 mr-1" /> Passwords do not match
                   </p>
                 )}
               </div>
 
               {/* DigiLocker */}
-              {!isVerified ? (
-                <Link
-                  to="/verify/digilocker"
-                  className="w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl text-blue-700 bg-blue-50"
-                >
-                  <ExternalLink className="w-5 h-5 mr-2" />
-                  Verify via DigiLocker
-                </Link>
-              ) : (
-                <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl text-green-700 bg-green-50">
-                  <CheckCircle className="w-5 h-5 mr-2" />
-                  Identity Verified
-                </div>
-              )}
+              <div className="pt-2">
+                {!isVerified ? (
+                  <Link
+                    to="/verify/digilocker"
+                    className="w-full flex items-center justify-center px-4 py-3 border border-blue-200 rounded-xl text-blue-700 bg-blue-50"
+                  >
+                    <ExternalLink className="w-5 h-5 mr-2" />
+                    Verify via DigiLocker
+                  </Link>
+                ) : (
+                  <div className="w-full flex items-center justify-center px-4 py-3 border border-green-200 rounded-xl text-green-700 bg-green-50">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Identity Verified
+                  </div>
+                )}
+              </div>
 
               {/* Register */}
               <button
                 type="submit"
                 disabled={loading || !isVerified}
-                className={`w-full py-3 rounded-xl text-white ${
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white ${
                   loading || !isVerified
                     ? 'bg-indigo-400 cursor-not-allowed'
                     : 'bg-indigo-600 hover:bg-indigo-700'
@@ -265,11 +278,11 @@ const Register = ({ onViewChange }) => {
               </button>
             </form>
 
-            {/* Back to login */}
+            {/* Back to Login */}
             <div className="mt-6 text-center">
               <button
                 onClick={() => navigate('/login')}
-                className="text-sm text-indigo-600 flex items-center justify-center w-full"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center justify-center w-full"
               >
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Back to Login
